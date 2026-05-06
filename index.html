@@ -1549,6 +1549,7 @@
               <button class="btn-soft tab-btn tab-relatorio" data-tab="rel_dizimos_ofertas" onclick="trocarAba('rel_dizimos_ofertas', this)">📊 Contribuintes, Oferta e Dízimo</button>
               <button class="btn-soft tab-btn tab-relatorio" data-tab="rel_missao" onclick="trocarAba('rel_missao', this)">✈️ Missão</button>
               <button class="btn-soft tab-btn tab-relatorio" id="tabDespesas" data-tab="rel_despesas" onclick="trocarAba('rel_despesas', this)">💸 Despesas</button>
+              <button class="btn-soft tab-btn tab-relatorio" id="tabFechamento" data-tab="rel_fechamento" onclick="trocarAba('rel_fechamento', this)" style="background:linear-gradient(135deg,#1f57b4,#2f75e7);color:#fff;">📋 Fechamento Geral</button>
               <div style="width:100%;height:1px;background:#e0e9f5;margin:2px 0;"></div>
               <button class="btn-soft tab-btn tab-relatorio" data-tab="rel_graficos" onclick="trocarAba('rel_graficos', this)">📈 Gráfico Mensal</button>
               <button class="btn-soft tab-btn tab-relatorio" data-tab="rel_filtro" onclick="trocarAba('rel_filtro', this)">🔍 Filtrar por Período</button>
@@ -1749,9 +1750,11 @@
 
     function aplicarPermissoesUI() {
       if (!usuarioAtual) return;
-      // Só admin vê aba Despesas
+      // Só admin vê aba Despesas e Fechamento
       const tabDesp = document.getElementById('tabDespesas');
       if (tabDesp) tabDesp.style.display = usuarioAtual.perfil === 'admin' ? '' : 'none';
+      const tabFech = document.getElementById('tabFechamento');
+      if (tabFech) tabFech.style.display = usuarioAtual.perfil === 'admin' ? '' : 'none';
       // Lancador não vê resetar
       if (usuarioAtual.perfil === 'lancador') {
         document.querySelectorAll('[onclick="resetarTudo()"]').forEach(b => b.style.display = 'none');
@@ -5052,6 +5055,321 @@ let _pixLancamentos = []; // buffer para confirmação
       URL.revokeObjectURL(url);
     }
 
+
+    // ===================== FECHAMENTO GERAL =====================
+    const CONGREGACOES = [
+      'TEMPLO SEDE', 'CONG. JARDIPE', 'CONG. CIDEZAI I', 'CONG. POPULAR',
+      'CONG. JARDIM SAPEZAL', 'CONG. CHÁCARA', 'CONG. FAZENDA ENCANTADO',
+      'CONG. ÁGUA QUENTE', 'CONG. PAPAGAIO'
+    ];
+
+    const FECHAMENTO_KEY = 'fecontrol_fechamento_v1';
+
+    function carregarFechamento() {
+      try { return JSON.parse(localStorage.getItem(FECHAMENTO_KEY) || '{}'); } catch(e) { return {}; }
+    }
+
+    function salvarFechamento(dados) {
+      localStorage.setItem(FECHAMENTO_KEY, JSON.stringify(dados));
+    }
+
+    function renderizarFechamentoGeral(alvo) {
+      const dados = carregarFechamento();
+      const mesAno = dados.mesAno || (() => {
+        const d = new Date();
+        const meses = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+        return meses[d.getMonth()] + '/' + d.getFullYear();
+      })();
+
+      // Puxar dados do TEMPLO SEDE automaticamente do sistema
+      const todosAprov = carregarLancamentos().filter(l =>
+        l.status === 'APROVADO_AUTOMATICO' || l.status === 'APROVADO_MANUAL'
+      );
+      const isDespSede = l => l.tipo_lancamento === 'DESPESA' || l.origem === 'DESPESA' ||
+                              l.origem === 'REGISTRO_ADICIONAL' || l.origem === 'EXTRATO_BANCARIO';
+      const entradaSede = todosAprov.filter(l => !isDespSede(l))
+        .reduce((s, l) => s + Number(l.valor || 0), 0);
+      const despesaSede = todosAprov.filter(isDespSede)
+        .reduce((s, l) => s + Number(l.valor || 0), 0);
+      const contribSede = new Set(todosAprov.filter(l => !isDespSede(l) && l.nome_digitado)
+        .map(l => l.nome_digitado)).size;
+
+      // Sempre preencher TEMPLO SEDE com dados do sistema (entrada, despesas, contribuintes)
+      if (!dados.congregacoes) dados.congregacoes = {};
+      const d0 = dados.congregacoes[0] || {};
+      dados.congregacoes[0] = {
+        entrada: formatMoeda(entradaSede),
+        despesas: formatMoeda(despesaSede),
+        totalAtual: formatMoeda(entradaSede - despesaSede),
+        totalContrib: String(contribSede),
+        mesAnt: d0.mesAnt || '',
+        contribAnt: d0.contribAnt || '',
+        _auto: true
+      };
+      salvarFechamento(dados);
+
+      // Preencher Total Despesas informativo automaticamente
+      if (!dados.informativos) dados.informativos = {};
+      dados.informativos.totalDespesas = formatMoeda(despesaSede);
+      salvarFechamento(dados);
+
+      const congs = CONGREGACOES.map((nome, i) => {
+        const d = (dados.congregacoes || {})[i] || {};
+        return { nome, entrada: d.entrada||'', despesas: d.despesas||'', totalAtual: d.totalAtual||'', totalContrib: d.totalContrib||'', mesAnt: d.mesAnt||'', contribAnt: d.contribAnt||'' };
+      });
+
+      const inf = dados.informativos || {};
+
+      alvo.innerHTML = `
+        <div id="fechamentoWrap" style="font-family:'Segoe UI',Arial,sans-serif;background:#fff;padding:16px;border-radius:12px;max-width:1100px;margin:0 auto;">
+
+          <!-- Cabeçalho -->
+          <div style="text-align:center;margin-bottom:12px;">
+            <div style="font-size:13px;font-weight:800;color:#1f3150;letter-spacing:.5px;">
+              RELATÓRIO FINANCEIRO IEAD SAPEZAL REFERENTE
+            </div>
+            <div style="margin-top:6px;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span style="font-size:12px;font-weight:700;">MÊS/ANO:</span>
+              <input id="fech_mesAno" value="${mesAno}" style="font-size:13px;font-weight:800;color:#1f3150;border:1px solid #ccd;border-radius:6px;padding:3px 8px;text-align:center;text-transform:uppercase;width:160px;" onchange="atualizarFechamento()" />
+            </div>
+          </div>
+
+          <!-- Tabela -->
+          <div style="overflow-x:auto;">
+            <table id="tabelaFechamento" style="width:100%;border-collapse:collapse;font-size:11px;">
+              <thead>
+                <tr style="background:#1f57b4;color:#fff;">
+                  <th style="padding:6px 8px;text-align:left;border:1px solid #ccc;">CONGREGAÇÃO</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">ENTRADA</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">DESPESAS</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">TOTAL ATUAL</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">TOTAL CONTRIBUINTES</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">MÊS ANTERIOR</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">CONTRIBUINTES ANTERIOR</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">%</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">VARIAÇÃO CONTRIBUINTES</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${congs.map((c,i) => `
+                <tr style="background:${i%2===0?'#f8faff':'#fff'};">
+                  <td style="padding:4px 8px;border:1px solid #ddd;font-weight:700;font-size:11px;">${c.nome}</td>
+                  ${['entrada','despesas','totalAtual','totalContrib','mesAnt','contribAnt'].map(campo => `
+                  <td style="padding:2px;border:1px solid #ddd;text-align:center;">
+                    <input type="text" value="${c[campo]}" data-cong="${i}" data-campo="${campo}"
+                      style="width:100%;border:none;background:transparent;text-align:center;font-size:11px;font-weight:600;outline:none;min-width:70px;"
+                      oninput="calcularLinha(${i})" onchange="salvarCelula(${i},'${campo}',this.value)" />
+                  </td>`).join('')}
+                  <td id="pct_${i}" style="padding:4px;border:1px solid #ddd;text-align:center;font-weight:700;font-size:11px;"></td>
+                  <td id="var_${i}" style="padding:4px;border:1px solid #ddd;text-align:center;font-weight:700;font-size:11px;"></td>
+                </tr>`).join('')}
+                <!-- Linha MÉDIAS + SOMA -->
+                <tr style="background:#1f57b4;color:#fff;font-weight:800;">
+                  <td style="padding:5px 8px;border:1px solid #ccc;">MÉDIAS + SOMA ⟹</td>
+                  <td id="soma_entrada" style="padding:5px;border:1px solid #ccc;text-align:center;"></td>
+                  <td id="soma_despesas" style="padding:5px;border:1px solid #ccc;text-align:center;"></td>
+                  <td id="soma_totalAtual" style="padding:5px;border:1px solid #ccc;text-align:center;"></td>
+                  <td id="soma_totalContrib" style="padding:5px;border:1px solid #ccc;text-align:center;"></td>
+                  <td id="soma_mesAnt" style="padding:5px;border:1px solid #ccc;text-align:center;"></td>
+                  <td id="soma_contribAnt" style="padding:5px;border:1px solid #ccc;text-align:center;"></td>
+                  <td id="soma_pct" style="padding:5px;border:1px solid #ccc;text-align:center;"></td>
+                  <td id="soma_var" style="padding:5px;border:1px solid #ccc;text-align:center;"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Informativos -->
+          <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:700px;">
+            ${[
+              ['cofre','COFRE MÊS (informativo)','#1f3150'],
+              ['saldoAnt','SALDO DO MÊS ANTERIOR FEVEREIRO','#1f3150'],
+              ['totalEntradas','TOTAL DAS ENTRADAS ATUAL MÊS','#1f3150'],
+              ['ofertaConv','OFERTA CONVENÇÃO (informativo)','#1f3150'],
+              ['saldoOperacional','SALDO OPERACIONAL MÊS (CALCULADO)','#c0392b'],
+              ['totalDespesas','TOTAL DAS DESPESAS MÊS (SAÍDAS)','#c0392b'],
+              ['saldoAtual','SALDO ATUAL','#1f3150'],
+            ].map(([k,label,cor]) => `
+            <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eee;padding:4px 0;gap:8px;">
+              <span style="font-size:11px;font-weight:700;color:${cor};">${label}</span>
+              <input id="inf_${k}" type="text" value="${inf[k]||''}" placeholder="R$ 0,00"
+                style="width:120px;border:1px solid #ccd;border-radius:5px;padding:3px 6px;text-align:right;font-size:12px;font-weight:800;color:${cor};"
+                onchange="salvarInformativo('${k}',this.value)" />
+            </div>`).join('')}
+          </div>
+
+          <!-- Assinaturas -->
+          <div style="margin-top:28px;">
+            <div style="margin-bottom:20px;">
+              <div style="width:350px;border-bottom:1px solid #333;margin-bottom:4px;"></div>
+              <div style="font-size:11px;font-weight:700;">PASTOR PRESIDENTE</div>
+            </div>
+            <div style="font-size:13px;font-weight:800;text-align:center;margin:20px 0 12px;">CONSELHO FISCAL</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:700px;">
+              ${['PRESIDENTE','RELATOR','SECRETÁRIO','1° TESOUREIRO','2° TESOUREIRO'].map(cargo => `
+              <div>
+                <div style="border-bottom:1px solid #333;margin-bottom:4px;width:280px;"></div>
+                <div style="font-size:11px;font-weight:700;">${cargo}</div>
+              </div>`).join('')}
+            </div>
+          </div>
+
+          <!-- Botões -->
+          <div style="margin-top:20px;display:flex;gap:8px;">
+            <button class="btn-primary" onclick="imprimirFechamento()" style="padding:10px 20px;">🖨️ Imprimir</button>
+            <button class="btn-soft" onclick="limparFechamento()" style="padding:10px 20px;">🗑️ Limpar tudo</button>
+          </div>
+        </div>
+      `;
+
+      // Calcular todas as linhas
+      CONGREGACOES.forEach((_, i) => calcularLinha(i));
+      calcularTotais();
+    }
+
+    function parseMoeda(v) {
+      if (!v) return 0;
+      const s = String(v).replace(/R\$\s*/g,'').replace(/\./g,'').replace(',','.').trim();
+      return parseFloat(s) || 0;
+    }
+
+    function formatMoeda(v) {
+      return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function calcularLinha(i) {
+      const get = campo => {
+        const el = document.querySelector(`input[data-cong="${i}"][data-campo="${campo}"]`);
+        return el ? parseMoeda(el.value) : 0;
+      };
+      const entrada = get('entrada');
+      const despesas = get('despesas');
+      const mesAnt = get('mesAnt');
+      const contribAtual = get('totalContrib');
+      const contribAnt = get('contribAnt');
+
+      // Total Atual = Entrada - Despesas (calculado automaticamente)
+      const totalAtualCalc = entrada - despesas;
+      const elTA = document.querySelector(`input[data-cong="${i}"][data-campo="totalAtual"]`);
+      if (elTA) elTA.value = formatMoeda(totalAtualCalc);
+
+      // % variação financeira = (entrada atual - mês anterior) / mês anterior
+      const pct = mesAnt > 0 ? ((entrada - mesAnt) / mesAnt * 100).toFixed(2) + '%' : '-';
+      const pctEl = document.getElementById('pct_' + i);
+      if (pctEl) {
+        pctEl.textContent = pct;
+        pctEl.style.color = parseMoeda(pct) > 0 ? '#1c7c4a' : parseMoeda(pct) < 0 ? '#c0392b' : '#333';
+      }
+
+      // Variação contribuintes
+      const varContrib = contribAtual - contribAnt;
+      const varEl = document.getElementById('var_' + i);
+      if (varEl) {
+        varEl.textContent = varContrib > 0 ? '+' + varContrib : varContrib || 0;
+        varEl.style.color = varContrib > 0 ? '#1c7c4a' : varContrib < 0 ? '#c0392b' : '#333';
+      }
+
+      calcularTotais();
+    }
+
+    function calcularTotais() {
+      const campos = ['entrada','despesas','totalAtual','totalContrib','mesAnt','contribAnt'];
+      const totais = {};
+      campos.forEach(c => totais[c] = 0);
+
+      CONGREGACOES.forEach((_, i) => {
+        campos.forEach(c => {
+          const el = document.querySelector(`input[data-cong="${i}"][data-campo="${c}"]`);
+          if (el) totais[c] += parseMoeda(el.value);
+        });
+      });
+
+      ['entrada','despesas','totalAtual','totalContrib','mesAnt','contribAnt'].forEach(c => {
+        const el = document.getElementById('soma_' + c);
+        if (el) el.textContent = formatMoeda(totais[c]);
+      });
+
+      // % total
+      const pctTotal = totais.mesAnt > 0
+        ? ((totais.entrada - totais.mesAnt) / totais.mesAnt * 100).toFixed(2) + '%' : '-';
+      const pctEl = document.getElementById('soma_pct');
+      if (pctEl) pctEl.textContent = pctTotal;
+
+      // Variação contribuintes total
+      const varTotal = totais.totalContrib - totais.contribAnt;
+      const varEl = document.getElementById('soma_var');
+      if (varEl) varEl.textContent = varTotal > 0 ? '+' + varTotal : varTotal;
+
+      // ===== CÁLCULOS INFORMATIVOS =====
+      const cofre = parseMoeda((document.getElementById('inf_cofre')||{}).value);
+      const saldoAnt = parseMoeda((document.getElementById('inf_saldoAnt')||{}).value);
+      const ofertaConv = parseMoeda((document.getElementById('inf_ofertaConv')||{}).value);
+      const totalDespesas = parseMoeda((document.getElementById('inf_totalDespesas')||{}).value);
+
+      // Total Entradas = soma entradas de todas congregações (NÃO inclui oferta convenção)
+      const totalEntradas = totais.entrada;
+      const elTE = document.getElementById('inf_totalEntradas');
+      if (elTE && !elTE._editando) elTE.value = formatMoeda(totalEntradas);
+
+      // Saldo Operacional = Total Entradas - Total Despesas (Cofre é só informativo)
+      const saldoOp = totalEntradas - totalDespesas;
+      const elSO = document.getElementById('inf_saldoOperacional');
+      if (elSO) { elSO.value = formatMoeda(saldoOp); elSO.style.color = saldoOp < 0 ? '#c0392b' : '#1f3150'; }
+
+      // Saldo Atual = Saldo Anterior + Saldo Operacional
+      const saldoAtual = saldoAnt + saldoOp;
+      const elSA = document.getElementById('inf_saldoAtual');
+      if (elSA) { elSA.value = formatMoeda(saldoAtual); }
+    }
+
+    function salvarCelula(i, campo, valor) {
+      const dados = carregarFechamento();
+      if (!dados.congregacoes) dados.congregacoes = {};
+      if (!dados.congregacoes[i]) dados.congregacoes[i] = {};
+      dados.congregacoes[i][campo] = valor;
+      salvarFechamento(dados);
+      calcularLinha(i);
+    }
+
+    function salvarInformativo(k, valor) {
+      const dados = carregarFechamento();
+      if (!dados.informativos) dados.informativos = {};
+      dados.informativos[k] = valor;
+      salvarFechamento(dados);
+    }
+
+    function atualizarFechamento() {
+      const dados = carregarFechamento();
+      dados.mesAno = document.getElementById('fech_mesAno').value.toUpperCase();
+      salvarFechamento(dados);
+    }
+
+    function limparFechamento() {
+      if (!confirm('Deseja limpar todos os dados do fechamento?')) return;
+      localStorage.removeItem(FECHAMENTO_KEY);
+      const alvo = document.getElementById('conteudoLista');
+      renderizarFechamentoGeral(alvo);
+    }
+
+    function imprimirFechamento() {
+      const conteudo = document.getElementById('fechamentoWrap').innerHTML;
+      const janela = window.open('', '_blank');
+      janela.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>Fechamento Geral</title>
+        <style>
+          body { font-family:'Segoe UI',Arial,sans-serif; margin: 20px; font-size:11px; }
+          table { width:100%; border-collapse:collapse; }
+          th, td { border:1px solid #999; padding:4px 6px; }
+          th { background:#1f57b4; color:#fff; }
+          input { border:none; background:transparent; width:100%; text-align:center; font-size:11px; font-weight:600; }
+          @media print { button { display:none!important; } }
+        </style>
+      </head><body>${conteudo}</body></html>`);
+      janela.document.close();
+      janela.focus();
+      setTimeout(() => { janela.print(); janela.close(); }, 500);
+    }
+
     function renderizarTudo() {
       renderizarBasePrincipal();
       renderizarCards();
@@ -5079,6 +5397,15 @@ let _pixLancamentos = []; // buffer para confirmação
       if (tipo === 'rel_historico') {
         alvo.classList.add('relatorio-aberto');
         renderizarHistoricoPessoa(alvo, aprovados); return;
+      }
+      if (tipo === 'rel_fechamento') {
+        if (!usuarioAtual || usuarioAtual.perfil !== 'admin') {
+          alvo.innerHTML = '<div style="padding:24px;text-align:center;color:#af2f2f;font-weight:700;">❌ Acesso restrito — apenas administradores.</div>';
+          return;
+        }
+        alvo.classList.add('relatorio-aberto');
+        renderizarFechamentoGeral(alvo);
+        return;
       }
 
       // Reset for table reports
