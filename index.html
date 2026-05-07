@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -5205,21 +5204,22 @@ let _pixLancamentos = []; // buffer para confirmação
           <!-- Informativos -->
           <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:700px;">
             ${[
-              ['cofre','COFRE MÊS (informativo)','#1f3150'],
-              ['saldoAnt','SALDO DO MÊS ANTERIOR','#1f3150'],
-              ['totalEntradas','TOTAL DAS ENTRADAS ATUAL MÊS','#1f3150'],
-              ['ofertaConv','OFERTA CONVENÇÃO (informativo)','#1f3150'],
-              ['despesaExtrato','💳 EXTRATO BANCÁRIO IMPORTADO (auto)','#7c3aed'],
-              ['saldoOperacional','SALDO OPERACIONAL MÊS (CALCULADO)','#c0392b'],
-              ['totalDespesas','TOTAL DESPESAS (CONGREGAÇÕES + EXTRATO)','#c0392b'],
-              ['saldoAtual','SALDO ATUAL','#1f3150'],
-            ].map(([k,label,cor]) => `
-            <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eee;padding:4px 0;gap:8px;">
+              ['cofre','COFRE MÊS (informativo)',false,'#1f3150'],
+              ['saldoAnt','SALDO DO MÊS ANTERIOR',false,'#1f3150'],
+              ['totalEntradas','TOTAL DAS ENTRADAS ATUAL MÊS',true,'#1f3150'],
+              ['ofertaConv','OFERTA CONVENÇÃO (informativo)',false,'#1f3150'],
+              ['despesaExtrato','💳 EXTRATO BANCÁRIO (automático)',true,'#7c3aed'],
+              ['totalDespesas','TOTAL DESPESAS (CONG. + EXTRATO)',true,'#c0392b'],
+              ['saldoOperacional','SALDO OPERACIONAL MÊS',true,'#c0392b'],
+              ['saldoAtual','SALDO ATUAL (ANT. + OPERACIONAL)',true,'#1f3150'],
+            ].map(([k,label,auto,cor]) => `
+            <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eee;padding:5px 0;gap:8px;">
               <span style="font-size:11px;font-weight:700;color:${cor};">${label}</span>
-              <input id="inf_${k}" type="text" value="${inf[k]||''}" placeholder="R$ 0,00"
-                style="width:120px;border:1px solid #ccd;border-radius:5px;padding:3px 6px;text-align:right;font-size:12px;font-weight:800;color:${cor};"
-                onchange="salvarInformativo('${k}',this.value)"
-                oninput="calcularTotais()" />
+              <input id="inf_${k}" type="text" value="${inf[k]||''}" placeholder="0,00"
+                style="width:130px;border:1px solid ${auto ? '#ddd' : '#ccd'};border-radius:5px;padding:4px 8px;text-align:right;font-size:12px;font-weight:800;color:${cor};background:${auto ? '#f8f9fa' : '#fff'};"
+                ${auto ? 'readonly' : ''}
+                onchange="salvarInformativo('${k}',this.value);calcularTotais();"
+                oninput="salvarInformativo('${k}',this.value);calcularTotais();" />
             </div>`).join('')}
           </div>
 
@@ -5341,9 +5341,9 @@ let _pixLancamentos = []; // buffer para confirmação
 
       // ===== CÁLCULOS INFORMATIVOS =====
       const cofre = parseMoeda((document.getElementById('inf_cofre')||{}).value);
-      const saldoAnt = parseMoeda((document.getElementById('inf_saldoAnt')||{}).value);
+      const saldoAnt = parseMoeda((document.getElementById('inf_saldoAnt')||{}).value || '0');
       const ofertaConv = parseMoeda((document.getElementById('inf_ofertaConv')||{}).value);
-      const totalDespesas = parseMoeda((document.getElementById('inf_totalDespesas')||{}).value);
+      // totalDespesas é calculado automaticamente
 
       // Total Entradas = soma entradas de todas congregações
       const totalEntradas = totais.entrada;
@@ -5365,10 +5365,14 @@ let _pixLancamentos = []; // buffer para confirmação
       const elSO = document.getElementById('inf_saldoOperacional');
       if (elSO) { elSO.value = formatMoeda(saldoOp); elSO.style.color = saldoOp < 0 ? '#c0392b' : '#1f3150'; }
 
-      // Saldo Atual = Saldo Anterior + Saldo Operacional
+      // Saldo Atual = Saldo Anterior + Total Entradas - Total Despesas
       const saldoAtual = saldoAnt + saldoOp;
       const elSA = document.getElementById('inf_saldoAtual');
-      if (elSA) { elSA.value = formatMoeda(saldoAtual); }
+      if (elSA) { 
+        elSA.value = formatMoeda(saldoAtual);
+        elSA.style.color = saldoAtual < 0 ? '#c0392b' : '#1f3150';
+        elSA.style.fontWeight = '800';
+      }
     }
 
     function salvarCelula(i, campo, valor) {
