@@ -1504,6 +1504,9 @@
 
           <div class="panel-card">
             <div class="section-title">Ações rápidas</div>
+            <button class="btn-primary btn-block" onclick="buscarNovosLancamentos()" style="margin-bottom:8px;background:linear-gradient(135deg,#1c7c4a,#27ae60);">
+              🔄 Buscar novos lançamentos
+            </button>
             <div class="btn-grid">
               <button class="btn-soft" onclick="cadastrarNomeDigitadoNaBase()">Cadastrar nome na base</button>
               <button class="btn-soft" onclick="limparFormulario()">Limpar</button>
@@ -1750,13 +1753,29 @@
 
     function aplicarPermissoesUI() {
       if (!usuarioAtual) return;
-      // Só admin vê aba Despesas e Fechamento
+      const isMaster = usuarioAtual.email === 'gunimicaelke@gmail.com';
+      const isAdmin = usuarioAtual.perfil === 'admin';
+
+      // Só gunimicaelke vê Despesas, Fechamento e valores do dashboard
       const tabDesp = document.getElementById('tabDespesas');
-      if (tabDesp) tabDesp.style.display = usuarioAtual.perfil === 'admin' ? '' : 'none';
+      if (tabDesp) tabDesp.style.display = isMaster ? '' : 'none';
       const tabFech = document.getElementById('tabFechamento');
-      if (tabFech) tabFech.style.display = usuarioAtual.perfil === 'admin' ? '' : 'none';
+      if (tabFech) tabFech.style.display = isMaster ? '' : 'none';
+
+      // Esconder cards de valores para não-master
+      if (!isMaster) {
+        // Esconde cards: Total Entradas, Dízimo, Missão, Despesas
+        ['totalAprovados','totalDizimos','totalMissao','totalDespesas'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            const card = el.closest('.metric-card');
+            if (card) card.style.display = 'none';
+          }
+        });
+      }
+
       // Lancador não vê resetar
-      if (usuarioAtual.perfil === 'lancador') {
+      if (!isAdmin) {
         document.querySelectorAll('[onclick="resetarTudo()"]').forEach(b => b.style.display = 'none');
       }
     }
@@ -3571,7 +3590,7 @@
 
       lancamentos.unshift(item);
       salvarLancamentos(lancamentos);
-      sbSalvarItem(item); // envia para Supabase imediatamente
+      sbSalvarItem(item).catch(e => console.warn('Erro ao salvar no Supabase:', e)); // envia para Supabase imediatamente
 
       if (cadastro) {
         mostrarStatus('Lançamento salvo como pendente. O nome foi localizado na base, mas ainda precisa de aprovação.', 'warn');
@@ -4933,6 +4952,40 @@ let _pixLancamentos = []; // buffer para confirmação
       mostrarStatusSync('✅ ' + novos + ' despesas importadas!');
     }
 
+    // ===================== BUSCAR NOVOS LANÇAMENTOS =====================
+    async function buscarNovosLancamentos() {
+      mostrarStatusSync('☁️ Buscando novos lançamentos...');
+      try {
+        const remotos = await sbGet('lancamentos');
+        if (!remotos || !remotos.length) {
+          mostrarStatusSync('⚠️ Nenhum lançamento encontrado na nuvem.');
+          return;
+        }
+
+        const locais = carregarLancamentos();
+        const idsLocais = new Set(locais.map(l => l.id));
+
+        // Novos = estão no Supabase mas não localmente
+        const novos = remotos.filter(r => !idsLocais.has(r.id));
+
+        if (novos.length === 0) {
+          mostrarStatusSync('✅ Tudo atualizado! Nenhum lançamento novo.');
+          return;
+        }
+
+        // Adiciona novos sem duplicar
+        const atualizados = [...locais, ...novos];
+        localStorage.setItem(STORAGE_KEYS.lancamentos, JSON.stringify(atualizados));
+
+        mostrarStatusSync('✅ ' + novos.length + ' novo(s) lançamento(s) importado(s)!');
+        renderizarTudo();
+        renderizarCards();
+      } catch(e) {
+        console.warn('Erro ao buscar:', e);
+        mostrarStatusSync('⚠️ Sem conexão com a nuvem.');
+      }
+    }
+
     // ===================== BUSCA RÁPIDA =====================
     let termoBusca = '';
 
@@ -5283,11 +5336,16 @@ let _pixLancamentos = []; // buffer para confirmação
       if (elTA) elTA.value = formatMoeda(totalAtualCalc);
 
       // % variação financeira = (entrada atual - mês anterior) / mês anterior
-      const pct = mesAnt > 0 ? ((entrada - mesAnt) / mesAnt * 100).toFixed(2) + '%' : '-';
+      let pctTxt = '-';
+      let pctVal = 0;
+      if (mesAnt > 0 && entrada > 0) {
+        pctVal = ((entrada - mesAnt) / mesAnt * 100);
+        pctTxt = (pctVal >= 0 ? '+' : '') + pctVal.toFixed(1) + '%';
+      }
       const pctEl = document.getElementById('pct_' + i);
       if (pctEl) {
-        pctEl.textContent = pct;
-        pctEl.style.color = parseMoeda(pct) > 0 ? '#1c7c4a' : parseMoeda(pct) < 0 ? '#c0392b' : '#333';
+        pctEl.textContent = pctTxt;
+        pctEl.style.color = pctVal > 0 ? '#1c7c4a' : pctVal < 0 ? '#c0392b' : '#556';
       }
 
       // Variação contribuintes
@@ -5318,16 +5376,26 @@ let _pixLancamentos = []; // buffer para confirmação
         if (el) el.textContent = formatMoeda(totais[c]);
       });
 
-      // % total
-      const pctTotal = totais.mesAnt > 0
-        ? ((totais.entrada - totais.mesAnt) / totais.mesAnt * 100).toFixed(2) + '%' : '-';
+      // MÉDIA das porcentagens das linhas que têm mês anterior
+      let somaP = 0, countP = 0;
+      CONGREGACOES.forEach((_, i) => {
+        const elE = document.querySelector(`input[data-cong="${i}"][data-campo="entrada"]`);
+        const elM = document.querySelector(`input[data-cong="${i}"][data-campo="mesAnt"]`);
+        if (!elE || !elM) return;
+        const e = parseMoeda(elE.value), m = parseMoeda(elM.value);
+        if (m > 0 && e > 0) { somaP += (e - m) / m * 100; countP++; }
+      });
+      const mediaPct = countP > 0 ? (somaP / countP) : null;
       const pctEl = document.getElementById('soma_pct');
-      if (pctEl) pctEl.textContent = pctTotal;
+      if (pctEl) {
+        pctEl.textContent = mediaPct !== null ? (mediaPct >= 0 ? '+' : '') + mediaPct.toFixed(1) + '%' : '-';
+        pctEl.style.color = mediaPct > 0 ? '#1c7c4a' : mediaPct < 0 ? '#c0392b' : '#fff';
+      }
 
-      // Variação contribuintes total
+      // SOMA variação contribuintes
       const varTotal = totais.totalContrib - totais.contribAnt;
       const varEl = document.getElementById('soma_var');
-      if (varEl) varEl.textContent = varTotal > 0 ? '+' + varTotal : varTotal;
+      if (varEl) varEl.textContent = varTotal > 0 ? '+' + varTotal : varTotal || 0;
 
       // ===== CÁLCULOS INFORMATIVOS =====
       const cofre = parseMoeda((document.getElementById('inf_cofre')||{}).value);
@@ -5647,6 +5715,28 @@ let _pixLancamentos = []; // buffer para confirmação
     sincronizarCargoPeloNome();
     verificarSessao();
 
+    // Sincronização automática a cada 30 segundos
+    setInterval(async () => {
+      if (!usuarioAtual) return;
+      try {
+        const remotos = await sbGet('lancamentos');
+        if (!remotos || !remotos.length) return;
+        const locais = carregarLancamentos();
+        const idsLocais = new Set(locais.map(l => l.id));
+        const novosRemotos = remotos.filter(r => !idsLocais.has(r.id));
+        if (novosRemotos.length > 0) {
+          // Tem novos lançamentos de outros dispositivos — atualiza
+          const mapa = new Map();
+          locais.forEach(l => mapa.set(l.id, l));
+          remotos.forEach(r => { if (!mapa.has(r.id)) mapa.set(r.id, r); });
+          const atualizados = Array.from(mapa.values());
+          localStorage.setItem(STORAGE_KEYS.lancamentos, JSON.stringify(atualizados));
+          renderizarTudo();
+          mostrarStatusSync('🔄 ' + novosRemotos.length + ' novo(s) lançamento(s) recebido(s)!');
+        }
+      } catch(e) { /* offline, ignora */ }
+    }, 30000);
+
     // SEMPRE carrega do Supabase ao iniciar — substitui localStorage
     (async () => {
       try {
@@ -5681,6 +5771,35 @@ let _pixLancamentos = []; // buffer para confirmação
       }
       renderizarTudo();
     })();
+
+    // Sincronização automática a cada 30 segundos
+    setInterval(async () => {
+      if (!usuarioAtual) return;
+      try {
+        const remotos = await sbGet('lancamentos');
+        const locais = carregarLancamentos();
+        const idsLocais = new Set(locais.map(l => l.id));
+        const idsRemotos = new Set(remotos.map(r => r.id));
+
+        // Novos locais → Supabase
+        const novosLocais = locais.filter(l => !idsRemotos.has(l.id));
+        for (const l of novosLocais) await sbSalvarItem(l);
+
+        // Novos remotos → local (lançamentos de outros dispositivos)
+        const novosRemotos = remotos.filter(r => !idsLocais.has(r.id));
+        if (novosRemotos.length > 0) {
+          const merged = [...locais, ...novosRemotos];
+          localStorage.setItem(STORAGE_KEYS.lancamentos, JSON.stringify(merged));
+          renderizarTudo();
+          mostrarStatusSync('🔄 ' + novosRemotos.length + ' novo(s) lançamento(s) recebido(s)!');
+        }
+
+        // Deletar do Supabase o que foi excluído localmente
+        const paraDeletear = remotos.filter(r => !idsLocais.has(r.id) && !novosRemotos.find(n => n.id === r.id));
+        for (const r of paraDeletear) await sbDeletarItem(r.id);
+
+      } catch(e) { /* offline, ignora */ }
+    }, 30000);
 
     function esconderTelaInicial() {
       const tela = document.getElementById('startupScreen');
