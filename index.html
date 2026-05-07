@@ -5223,9 +5223,10 @@ let _pixLancamentos = []; // buffer para confirmação
                   <td style="padding:2px;border:1px solid #ddd;text-align:center;${campo==='despesas'?'color:#c0392b;':campo==='entrada'?'':''}">
                     <input type="text" value="${c[campo]}" data-cong="${i}" data-campo="${campo}"
                       style="width:100%;border:none;background:transparent;text-align:center;font-size:11px;font-weight:600;outline:none;min-width:70px;cursor:text;color:${campo==='despesas'?'#c0392b':'inherit'};"
-                      placeholder="${campo==='totalContrib'||campo==='contribAnt'?'Nº':'0,00'}"
-                      oninput="calcularLinha(${i})"
-                      onblur="formatarBlurBRL(this);calcularLinha(${i})"
+                      placeholder="${campo==='totalContrib'||campo==='contribAnt'?'0':'0,00'}"
+                      inputmode="${campo==='totalContrib'||campo==='contribAnt'?'numeric':'decimal'}"
+                      oninput="${campo==='totalContrib'||campo==='contribAnt'?'this.value=this.value.replace(/[^0-9]/g,\'\')':''}calcularLinha(${i})"
+                      onblur="${campo==='totalContrib'||campo==='contribAnt'?'':'formatarBlurBRL(this);'}calcularLinha(${i})"
                       onchange="salvarCelula(${i},'${campo}',this.value)"
                       onkeydown="navegarCelula(event,${i},'${campo}')" />
                   </td>`).join('')}
