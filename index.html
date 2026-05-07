@@ -4896,22 +4896,32 @@ let _pixLancamentos = []; // buffer para confirmação
 
       const existentes = carregarLancamentos();
       const idsExist = new Set(existentes.map(l => l.id));
-      let novos = 0;
+
+      // Verifica duplicatas por: data + descrição + valor
+      const chaveExistente = new Set(
+        existentes
+          .filter(l => l.origem === 'EXTRATO_BANCARIO')
+          .map(l => `${l.data_lancamento}|${normalizar(l.nome_digitado||'')}|${Number(l.valor||0).toFixed(2)}`)
+      );
+
+      let novos = 0, duplicados = 0;
 
       for (const l of _extratoLancamentos) {
-        if (idsExist.has(l.id)) continue;
+        const chave = `${l.data_lancamento}|${normalizar(l.nome_digitado||'')}|${Number(l.valor||0).toFixed(2)}`;
+        if (idsExist.has(l.id) || chaveExistente.has(chave)) {
+          duplicados++;
+          continue;
+        }
         existentes.push(l);
+        chaveExistente.add(chave);
         await sbSalvarItem(l);
         novos++;
       }
 
       salvarLancamentos(existentes);
-      registrarAuditoria('IMPORTAÇÃO EXTRATO', `${novos} despesas importadas do extrato bancário.`);
+      registrarAuditoria('IMPORTAÇÃO EXTRATO', `${novos} despesas importadas, ${duplicados} duplicadas ignoradas.`);
 
-      document.getElementById('extratoStatus').innerHTML = `
-        <div style="background:#f5f3ff;border-radius:10px;padding:10px 12px;border:1px solid #c4b5fd;">
-          <div style="font-size:13px;font-weight:800;color:#7c3aed;">🎉 ${novos} despesas lançadas como pendentes!</div>
-        </div>`;
+      document.getElementById('extratoStatus').innerHTML = `<div style="background:#f5f3ff;border-radius:10px;padding:10px 12px;border:1px solid #c4b5fd;"><div style="font-size:13px;font-weight:800;color:#7c3aed;">🎉 ${novos} novas despesas lançadas! ${duplicados > 0 ? duplicados + ' duplicadas ignoradas.' : ''}</div></div>`;
       document.getElementById('extratoPreview').style.display = 'none';
       document.getElementById('extratoBtnImportar').style.display = 'none';
       document.getElementById('inputExtrato').value = '';
@@ -5085,13 +5095,12 @@ let _pixLancamentos = []; // buffer para confirmação
       const todosAprov = carregarLancamentos().filter(l =>
         l.status === 'APROVADO_AUTOMATICO' || l.status === 'APROVADO_MANUAL'
       );
+      const isMissao = l => l.tipo_lancamento === 'MISSAO';
       const isDespSede = l => l.tipo_lancamento === 'DESPESA' || l.origem === 'DESPESA' ||
                               l.origem === 'REGISTRO_ADICIONAL' || l.origem === 'EXTRATO_BANCARIO';
-      const isMissao = l => l.tipo_lancamento === 'MISSAO';
-      // Entradas = só dízimos e ofertas (NÃO missão)
+
+      // Entradas = só dízimos e ofertas (NÃO missão, NÃO despesas)
       const entradaSede = todosAprov.filter(l => !isDespSede(l) && !isMissao(l))
-        .reduce((s, l) => s + Number(l.valor || 0), 0);
-      const despesaSede = todosAprov.filter(isDespSede)
         .reduce((s, l) => s + Number(l.valor || 0), 0);
       // Contribuintes = só dízimos e ofertas
       const contribSede = new Set(todosAprov.filter(l => !isDespSede(l) && !isMissao(l) && l.nome_digitado)
@@ -5100,20 +5109,17 @@ let _pixLancamentos = []; // buffer para confirmação
       // Sempre preencher TEMPLO SEDE com dados do sistema (entrada, despesas, contribuintes)
       if (!dados.congregacoes) dados.congregacoes = {};
       const d0 = dados.congregacoes[0] || {};
+      // Só preenche entrada e contribuintes automaticamente — despesas são manuais
       dados.congregacoes[0] = {
         entrada: formatMoeda(entradaSede),
-        despesas: formatMoeda(despesaSede),
-        totalAtual: formatMoeda(entradaSede - despesaSede),
+        despesas: d0.despesas || '',
+        totalAtual: d0.totalAtual || '',
         totalContrib: String(contribSede),
         mesAnt: d0.mesAnt || '',
         contribAnt: d0.contribAnt || '',
         _auto: true
       };
-      salvarFechamento(dados);
-
-      // Preencher Total Despesas informativo automaticamente
       if (!dados.informativos) dados.informativos = {};
-      dados.informativos.totalDespesas = formatMoeda(despesaSede);
       salvarFechamento(dados);
 
       const congs = CONGREGACOES.map((nome, i) => {
@@ -5189,11 +5195,11 @@ let _pixLancamentos = []; // buffer para confirmação
           <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:700px;">
             ${[
               ['cofre','COFRE MÊS (informativo)','#1f3150'],
-              ['saldoAnt','SALDO DO MÊS ANTERIOR FEVEREIRO','#1f3150'],
+              ['saldoAnt','SALDO DO MÊS ANTERIOR','#1f3150'],
               ['totalEntradas','TOTAL DAS ENTRADAS ATUAL MÊS','#1f3150'],
               ['ofertaConv','OFERTA CONVENÇÃO (informativo)','#1f3150'],
               ['saldoOperacional','SALDO OPERACIONAL MÊS (CALCULADO)','#c0392b'],
-              ['totalDespesas','TOTAL DAS DESPESAS MÊS (SAÍDAS)','#c0392b'],
+              ['totalDespesas','TOTAL DAS DESPESAS MÊS','#c0392b'],
               ['saldoAtual','SALDO ATUAL','#1f3150'],
             ].map(([k,label,cor]) => `
             <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #eee;padding:4px 0;gap:8px;">
@@ -5312,13 +5318,18 @@ let _pixLancamentos = []; // buffer para confirmação
       const ofertaConv = parseMoeda((document.getElementById('inf_ofertaConv')||{}).value);
       const totalDespesas = parseMoeda((document.getElementById('inf_totalDespesas')||{}).value);
 
-      // Total Entradas = soma entradas de todas congregações (NÃO inclui oferta convenção)
+      // Total Entradas = soma entradas de todas congregações
       const totalEntradas = totais.entrada;
       const elTE = document.getElementById('inf_totalEntradas');
-      if (elTE && !elTE._editando) elTE.value = formatMoeda(totalEntradas);
+      if (elTE) elTE.value = formatMoeda(totalEntradas);
 
-      // Saldo Operacional = Total Entradas - Total Despesas (Cofre é só informativo)
-      const saldoOp = totalEntradas - totalDespesas;
+      // Total Despesas = soma coluna despesas de TODAS congregações (tudo manual)
+      const totalDespesasCalc = totais.despesas;
+      const elTD = document.getElementById('inf_totalDespesas');
+      if (elTD) elTD.value = formatMoeda(totalDespesasCalc);
+
+      // Saldo Operacional = Total Entradas - Total Despesas
+      const saldoOp = totalEntradas - totalDespesasCalc;
       const elSO = document.getElementById('inf_saldoOperacional');
       if (elSO) { elSO.value = formatMoeda(saldoOp); elSO.style.color = saldoOp < 0 ? '#c0392b' : '#1f3150'; }
 
