@@ -3364,7 +3364,7 @@
       const fim = document.getElementById('filtroFim')?.value;
       const alvo = document.getElementById('resultadoFiltro');
       if (!alvo) return;
-      const todos = carregarLancamentos();
+      const todos = carregarLancamentosFiltrados();
       const aprovados = todos.filter(l => l.status === 'APROVADO_AUTOMATICO' || l.status === 'APROVADO_MANUAL');
       const filtrados = aprovados.filter(l => {
         const d = l.data_lancamento || '';
@@ -4995,24 +4995,41 @@ let _pixLancamentos = []; // buffer para confirmação
       const btnFechar = document.getElementById('btnFecharMes');
       const btnAbrir = document.getElementById('btnAbrirMes');
 
+      // Banner de aviso
+      let banner = document.getElementById('mesFechadoBanner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'mesFechadoBanner';
+        banner.style.cssText = 'background:#c0392b;color:#fff;text-align:center;padding:8px;font-weight:700;font-size:13px;position:sticky;top:0;z-index:999;display:none;';
+        banner.innerHTML = '🔒 MÊS FECHADO — Mostrando apenas lançamentos do mês atual. <button onclick="abrirMes()" style="margin-left:12px;background:#fff;color:#c0392b;border:none;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:700;">Abrir tudo</button>';
+        document.body.insertBefore(banner, document.body.firstChild);
+      }
+
       if (mesFechado) {
         if (btnFechar) btnFechar.style.display = 'none';
         if (btnAbrir) btnAbrir.style.display = 'block';
+        banner.style.display = 'block';
       } else {
         if (btnFechar) btnFechar.style.display = 'block';
         if (btnAbrir) btnAbrir.style.display = 'none';
+        banner.style.display = 'none';
       }
       renderizarTudo();
     }
 
     function filtrarPorMesAtual(lista) {
       const mesFechado = getMesFechado();
-      if (!mesFechado) return lista; // sem filtro
+      if (!mesFechado) return lista; // sem filtro — mostra tudo
       const mesAtual = getMesAtual();
+      // Quando fechado: mostra APENAS lançamentos do mês atual
       return lista.filter(l => {
-        const data = (l.data_lancamento || '').substring(0, 7); // yyyy-mm
+        const data = (l.data_lancamento || '').substring(0, 7);
         return data === mesAtual;
       });
+    }
+
+    function carregarLancamentosFiltrados() {
+      return filtrarPorMesAtual(carregarLancamentos());
     }
 
     // ===================== BUSCAR NOVOS LANÇAMENTOS =====================
@@ -5106,7 +5123,7 @@ let _pixLancamentos = []; // buffer para confirmação
     function exportarDespesasXLSX() {
       if (typeof XLSX === 'undefined') { alert('XLSX não disponível'); return; }
 
-      const todos = carregarLancamentos();
+      const todos = carregarLancamentosFiltrados();
       const aprovados = todos.filter(l => l.status === 'APROVADO_AUTOMATICO' || l.status === 'APROVADO_MANUAL');
       const despesas = aprovados
         .filter(l => l.tipo_lancamento === 'DESPESA' || l.origem === 'DESPESA' || l.origem === 'REGISTRO_ADICIONAL')
@@ -5655,7 +5672,7 @@ let _pixLancamentos = []; // buffer para confirmação
 
     function renderizarRelatorio(tipo) {
       const alvo = document.getElementById('conteudoLista');
-      const todos = carregarLancamentos();
+      const todos = carregarLancamentosFiltrados();
       const aprovados = todos.filter(l => l.status === 'APROVADO_AUTOMATICO' || l.status === 'APROVADO_MANUAL');
 
       // ===== RELATÓRIOS ESPECIAIS =====
@@ -5793,7 +5810,7 @@ let _pixLancamentos = []; // buffer para confirmação
     }
 
     function exportarRelatorioCSV(tipo) {
-      const todos = carregarLancamentos();
+      const todos = carregarLancamentosFiltrados();
       const aprovados = todos.filter(l => l.status === 'APROVADO_AUTOMATICO' || l.status === 'APROVADO_MANUAL');
       let filtrados = [];
       let nome = 'relatorio';
