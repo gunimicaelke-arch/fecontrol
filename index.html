@@ -1507,6 +1507,17 @@
             <button class="btn-primary btn-block" onclick="buscarNovosLancamentos()" style="margin-bottom:8px;background:linear-gradient(135deg,#1c7c4a,#27ae60);">
               🔄 Buscar novos lançamentos
             </button>
+            <div id="btnFecharMes" style="margin-bottom:8px;">
+              <button class="btn-block" onclick="fecharMes()" style="background:linear-gradient(135deg,#c0392b,#e74c3c);color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;width:100%;">
+                🔒 Fechar Mês
+              </button>
+            </div>
+            <div id="btnAbrirMes" style="display:none;margin-bottom:8px;">
+              <button class="btn-block" onclick="abrirMes()" style="background:linear-gradient(135deg,#1f57b4,#2f75e7);color:#fff;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;width:100%;">
+                🔓 Abrir Mês Anterior
+              </button>
+              <div style="font-size:11px;color:#c0392b;margin-top:4px;text-align:center;font-weight:700;">⚠️ Mês fechado — mostrando só mês atual</div>
+            </div>
             <div class="btn-grid">
               <button class="btn-soft" onclick="cadastrarNomeDigitadoNaBase()">Cadastrar nome na base</button>
               <button class="btn-soft" onclick="limparFormulario()">Limpar</button>
@@ -3570,7 +3581,8 @@
       }
 
       const cadastro = buscarNaBasePorNome(nome);
-      const lancamentos = carregarLancamentos();
+      const todosLancamentos = carregarLancamentos();
+      const lancamentos = filtrarPorMesAtual(todosLancamentos);
 
       const tipoLanc = document.getElementById('tipoLancamento') ? document.getElementById('tipoLancamento').value : 'DIZIMOS';
       const item = {
@@ -4124,7 +4136,7 @@
     }
 
     function renderizarCards() {
-      const lancamentos = carregarLancamentos();
+      const lancamentos = filtrarPorMesAtual(carregarLancamentos());
       const pendentes = lancamentos.filter(l => l.status === 'PENDENTE_APROVACAO').length;
       const aprovados = lancamentos.filter(l => l.status === 'APROVADO_AUTOMATICO' || l.status === 'APROVADO_MANUAL');
       // Função para identificar despesas
@@ -4952,6 +4964,57 @@ let _pixLancamentos = []; // buffer para confirmação
       mostrarStatusSync('✅ ' + novos + ' despesas importadas!');
     }
 
+    // ===================== FECHAR/ABRIR MÊS =====================
+    const MES_FECHADO_KEY = 'fecontrol_mes_fechado';
+
+    function getMesFechado() {
+      return localStorage.getItem(MES_FECHADO_KEY) || null;
+    }
+
+    function getMesAtual() {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    }
+
+    function fecharMes() {
+      const mesAtual = getMesAtual();
+      if (!confirm(`Deseja fechar o mês? Somente lançamentos de ${mesAtual.split('-')[1]}/${mesAtual.split('-')[0]} serão exibidos.`)) return;
+      localStorage.setItem(MES_FECHADO_KEY, mesAtual);
+      aplicarFiltroMes();
+      mostrarStatusSync('🔒 Mês fechado! Exibindo apenas lançamentos do mês atual.');
+    }
+
+    function abrirMes() {
+      localStorage.removeItem(MES_FECHADO_KEY);
+      aplicarFiltroMes();
+      mostrarStatusSync('🔓 Mês aberto! Exibindo todos os lançamentos.');
+    }
+
+    function aplicarFiltroMes() {
+      const mesFechado = getMesFechado();
+      const btnFechar = document.getElementById('btnFecharMes');
+      const btnAbrir = document.getElementById('btnAbrirMes');
+
+      if (mesFechado) {
+        if (btnFechar) btnFechar.style.display = 'none';
+        if (btnAbrir) btnAbrir.style.display = 'block';
+      } else {
+        if (btnFechar) btnFechar.style.display = 'block';
+        if (btnAbrir) btnAbrir.style.display = 'none';
+      }
+      renderizarTudo();
+    }
+
+    function filtrarPorMesAtual(lista) {
+      const mesFechado = getMesFechado();
+      if (!mesFechado) return lista; // sem filtro
+      const mesAtual = getMesAtual();
+      return lista.filter(l => {
+        const data = (l.data_lancamento || '').substring(0, 7); // yyyy-mm
+        return data === mesAtual;
+      });
+    }
+
     // ===================== BUSCAR NOVOS LANÇAMENTOS =====================
     async function buscarNovosLancamentos() {
       mostrarStatusSync('☁️ Buscando novos lançamentos...');
@@ -5145,7 +5208,7 @@ let _pixLancamentos = []; // buffer para confirmação
       })();
 
       // Puxar dados do TEMPLO SEDE automaticamente do sistema
-      const todosAprov = carregarLancamentos().filter(l =>
+      const todosAprov = filtrarPorMesAtual(carregarLancamentos()).filter(l =>
         l.status === 'APROVADO_AUTOMATICO' || l.status === 'APROVADO_MANUAL'
       );
       const isMissao = l => l.tipo_lancamento === 'MISSAO';
@@ -5802,6 +5865,7 @@ let _pixLancamentos = []; // buffer para confirmação
 
     sincronizarCargoPeloNome();
     verificarSessao();
+    aplicarFiltroMes();
 
     // Sincronização automática a cada 30 segundos
     setInterval(async () => {
