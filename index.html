@@ -5109,26 +5109,17 @@ let _pixLancamentos = []; // buffer para confirmação
       // Sempre preencher TEMPLO SEDE com dados do sistema (entrada, despesas, contribuintes)
       if (!dados.congregacoes) dados.congregacoes = {};
       const d0 = dados.congregacoes[0] || {};
-      // Despesas manuais sede (não extrato)
-      const despManualSede = todosAprov
-        .filter(l => (l.tipo_lancamento === 'DESPESA' || l.origem === 'DESPESA' || l.origem === 'REGISTRO_ADICIONAL') && l.origem !== 'EXTRATO_BANCARIO')
-        .reduce((s, l) => s + Number(l.valor || 0), 0);
-      // Despesas extrato
-      const despExtratoTotal = todosAprov
-        .filter(l => l.origem === 'EXTRATO_BANCARIO')
-        .reduce((s, l) => s + Number(l.valor || 0), 0);
-
+      // Sede: preenche só entrada e contribuintes — despesas são manuais
       dados.congregacoes[0] = {
         entrada: formatMoeda(entradaSede),
-        despesas: formatMoeda(despManualSede),
-        totalAtual: formatMoeda(entradaSede - despManualSede),
+        despesas: d0.despesas || '',
+        totalAtual: d0.totalAtual || '',
         totalContrib: String(contribSede),
         mesAnt: d0.mesAnt || '',
         contribAnt: d0.contribAnt || '',
         _auto: true
       };
       if (!dados.informativos) dados.informativos = {};
-      dados._despesaExtrato = despExtratoTotal;
       salvarFechamento(dados);
 
       const congs = CONGREGACOES.map((nome, i) => {
@@ -5207,9 +5198,8 @@ let _pixLancamentos = []; // buffer para confirmação
               ['cofre','COFRE MÊS (informativo)',false,'#1f3150'],
               ['saldoAnt','SALDO DO MÊS ANTERIOR',false,'#1f3150'],
               ['totalEntradas','TOTAL DAS ENTRADAS ATUAL MÊS',true,'#1f3150'],
-              ['ofertaConv','OFERTA CONVENÇÃO (informativo)',false,'#1f3150'],
-              ['despesaExtrato','💳 EXTRATO BANCÁRIO (automático)',true,'#7c3aed'],
-              ['totalDespesas','TOTAL DESPESAS (CONG. + EXTRATO)',true,'#c0392b'],
+              ['ofertaConv','OFERTA CONVENÇÃO 4% (informativo)',true,'#1f3150'],
+              ['totalDespesas','TOTAL DAS DESPESAS MÊS',true,'#c0392b'],
               ['saldoOperacional','SALDO OPERACIONAL MÊS',true,'#c0392b'],
               ['saldoAtual','SALDO ATUAL (ANT. + OPERACIONAL)',true,'#1f3150'],
             ].map(([k,label,auto,cor]) => `
@@ -5350,15 +5340,15 @@ let _pixLancamentos = []; // buffer para confirmação
       const elTE = document.getElementById('inf_totalEntradas');
       if (elTE) elTE.value = formatMoeda(totalEntradas);
 
-      // Total Despesas = todas congregações + extrato importado
-      const despExtrato = carregarFechamento()._despesaExtrato || 0;
-      const totalDespesasCalc = totais.despesas + despExtrato;
+      // Oferta Convenção = 4% das entradas totais (automático)
+      const ofertaConv = totalEntradas * 0.04;
+      const elOC = document.getElementById('inf_ofertaConv');
+      if (elOC) elOC.value = formatMoeda(ofertaConv);
+
+      // Total Despesas = soma coluna despesas de TODAS congregações (manual)
+      const totalDespesasCalc = totais.despesas;
       const elTD = document.getElementById('inf_totalDespesas');
       if (elTD) elTD.value = formatMoeda(totalDespesasCalc);
-
-      // Extrato informativo
-      const elExt = document.getElementById('inf_despesaExtrato');
-      if (elExt) elExt.value = formatMoeda(despExtrato);
 
       // Saldo Operacional = Total Entradas - Total Despesas
       const saldoOp = totalEntradas - totalDespesasCalc;
