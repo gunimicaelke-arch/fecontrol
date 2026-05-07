@@ -5344,28 +5344,39 @@ let _pixLancamentos = []; // buffer para confirmação
       const campo = input.getAttribute('data-campo');
       if (campo === 'totalContrib' || campo === 'contribAnt') return;
 
-      let v = input.value.trim();
+      let v = input.value.trim().replace(/R\$\s*/g, '').trim();
       if (!v) return;
 
-      // Remove R$ e espaços
-      v = v.replace(/R\$\s*/g, '').trim();
-
-      // Detecta formato e converte para número
       let num = 0;
-      if (v.includes(',') && v.includes('.')) {
-        // BR: 10.000,00
-        num = parseFloat(v.replace(/\./g, '').replace(',', '.'));
-      } else if (v.includes(',')) {
-        // 10000,00
-        num = parseFloat(v.replace(',', '.'));
+
+      // Detecta formato do que foi digitado
+      const temVirgula = v.includes(',');
+      const temPonto = v.includes('.');
+
+      if (temVirgula && temPonto) {
+        // Formato BR: 42.590,00 → ponto=milhar, vírgula=decimal
+        const idxP = v.lastIndexOf('.');
+        const idxC = v.lastIndexOf(',');
+        if (idxP < idxC) {
+          num = parseFloat(v.replace(/\./g,'').replace(',','.'));
+        } else {
+          // US: 42,590.00
+          num = parseFloat(v.replace(/,/g,''));
+        }
+      } else if (temVirgula) {
+        // 425,00 → vírgula é decimal BR
+        num = parseFloat(v.replace(',','.'));
+      } else if (temPonto) {
+        // 425.00 → ponto é decimal
+        num = parseFloat(v);
       } else {
-        // 10000.00 ou 10000
-        num = parseFloat(v.replace(/\./g, ''));
+        // 42590 → número inteiro
+        num = parseFloat(v);
       }
 
       if (isNaN(num) || num === 0) { input.value = ''; return; }
 
-      // Formata como BR: 10.000,00
+      // Formata como BR: 42.590,00
       input.value = num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
