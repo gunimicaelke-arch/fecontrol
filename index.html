@@ -5223,7 +5223,8 @@ let _pixLancamentos = []; // buffer para confirmação
                   <td style="padding:2px;border:1px solid #ddd;text-align:center;${campo==='despesas'?'color:#c0392b;':campo==='entrada'?'':''}">
                     <input type="text" value="${c[campo]}" data-cong="${i}" data-campo="${campo}"
                       style="width:100%;border:none;background:transparent;text-align:center;font-size:11px;font-weight:600;outline:none;min-width:70px;cursor:text;color:${campo==='despesas'?'#c0392b':'inherit'};"
-                      oninput="calcularLinha(${i})" onchange="salvarCelula(${i},'${campo}',this.value)"
+                      oninput="formatarInputBRL(this);calcularLinha(${i})" 
+                      onchange="salvarCelula(${i},'${campo}',this.value)"
                       onkeydown="navegarCelula(event,${i},'${campo}')" />
                   </td>`).join('')}
                   <td id="pct_${i}" style="padding:4px;border:1px solid #ddd;text-align:center;font-weight:700;font-size:11px;"></td>
@@ -5296,13 +5297,49 @@ let _pixLancamentos = []; // buffer para confirmação
     }
 
     function parseMoeda(v) {
-      if (!v) return 0;
-      const s = String(v).replace(/R\$\s*/g,'').replace(/\./g,'').replace(',','.').trim();
+      if (!v && v !== 0) return 0;
+      if (typeof v === 'number') return v;
+      let s = String(v).replace(/R\$\s*/g,'').trim();
+      // Detecta formato: se tem vírgula E ponto
+      if (s.includes(',') && s.includes('.')) {
+        // Ex: "42.500,00" → ponto é milhar, vírgula é decimal
+        const idxP = s.lastIndexOf('.');
+        const idxC = s.lastIndexOf(',');
+        if (idxP < idxC) {
+          s = s.replace(/\./g,'').replace(',','.');
+        } else {
+          s = s.replace(/,/g,'');
+        }
+      } else if (s.includes(',')) {
+        // "42500,00" ou "42,50" → vírgula é decimal
+        s = s.replace(',','.');
+      }
+      // Se só tem ponto: pode ser milhar "42.500" ou decimal "42.50"
+      // Se tem mais de 3 dígitos após o ponto, é milhar
+      else if (s.includes('.')) {
+        const partes = s.split('.');
+        if (partes[1] && partes[1].length > 2) {
+          // "42.500" → milhar → remove ponto
+          s = s.replace(/\./g,'');
+        }
+        // else "42.50" → decimal → mantém
+      }
       return parseFloat(s) || 0;
     }
 
     function formatMoeda(v) {
       return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatarInputBRL(input) {
+      // Só formata campos de valor (não contribuintes)
+      const campo = input.getAttribute('data-campo');
+      if (campo === 'totalContrib' || campo === 'contribAnt') return;
+
+      let v = input.value.replace(/[^\d]/g, ''); // só dígitos
+      if (!v) { input.value = ''; return; }
+      const num = parseInt(v) / 100;
+      input.value = num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     function navegarCelula(event, i, campo) {
@@ -5324,11 +5361,15 @@ let _pixLancamentos = []; // buffer para confirmação
         const el = document.querySelector(`input[data-cong="${i}"][data-campo="${campo}"]`);
         return el ? parseMoeda(el.value) : 0;
       };
+      const getInt = campo => {
+        const el = document.querySelector(`input[data-cong="${i}"][data-campo="${campo}"]`);
+        return el ? (parseInt(el.value) || 0) : 0;
+      };
       const entrada = get('entrada');
       const despesas = get('despesas');
       const mesAnt = get('mesAnt');
-      const contribAtual = get('totalContrib');
-      const contribAnt = get('contribAnt');
+      const contribAtual = getInt('totalContrib');
+      const contribAnt = getInt('contribAnt');
 
       // Total Atual = Entrada - Despesas (calculado automaticamente)
       const totalAtualCalc = entrada - despesas;
@@ -5351,14 +5392,14 @@ let _pixLancamentos = []; // buffer para confirmação
         pctEl.style.fontWeight = '700';
       }
 
-      // Variação contribuintes
-      const varContrib = contribAtual - contribAnt;
+      // Variação contribuintes (número inteiro)
+      const varContrib = Math.round(contribAtual) - Math.round(contribAnt);
       const varEl = document.getElementById('var_' + i);
       if (varEl) {
         if (contribAnt === 0 && contribAtual === 0) {
           varEl.textContent = '';
         } else {
-          varEl.textContent = varContrib > 0 ? '+' + varContrib : String(varContrib);
+          varEl.textContent = varContrib > 0 ? '+' + varContrib : varContrib === 0 ? '0' : String(varContrib);
         }
         varEl.style.color = varContrib > 0 ? '#1c7c4a' : varContrib < 0 ? '#c0392b' : '#333';
         varEl.style.fontWeight = '700';
