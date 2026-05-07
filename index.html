@@ -5340,7 +5340,7 @@ let _pixLancamentos = []; // buffer para confirmação
       let pctVal = 0;
       if (mesAnt > 0) {
         pctVal = ((entrada - mesAnt) / mesAnt * 100);
-        pctTxt = pctVal.toFixed(2) + '%';
+        pctTxt = pctVal.toFixed(2) + '%'; // ex: 7,45%
       }
       const pctEl = document.getElementById('pct_' + i);
       if (pctEl) {
@@ -5396,7 +5396,7 @@ let _pixLancamentos = []; // buffer para confirmação
       const mediaPct = countP > 0 ? (somaP / countP) : null;
       const pctEl = document.getElementById('soma_pct');
       if (pctEl) {
-        pctEl.textContent = mediaPct !== null ? mediaPct.toFixed(0) + '%' : '-';
+        pctEl.textContent = mediaPct !== null ? mediaPct.toFixed(2) + '%' : '-';
       }
 
       // SOMA variação contribuintes
