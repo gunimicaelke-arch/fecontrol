@@ -5206,12 +5206,12 @@ let _pixLancamentos = []; // buffer para confirmação
                 <tr style="background:#1f57b4;color:#fff;">
                   <th style="padding:6px 8px;text-align:left;border:1px solid #ccc;">CONGREGAÇÃO</th>
                   <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">ENTRADA</th>
-                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">DESPESAS</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">DESPESAS CONGREGAÇÃO</th>
                   <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">TOTAL ATUAL</th>
-                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">TOTAL CONTRIBUINTES</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">TOTAL DE CONTRIBUINTES</th>
                   <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">MÊS ANTERIOR</th>
-                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">CONTRIBUINTES ANTERIOR</th>
-                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">%</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">TOTAL CONTRIBUINTES ANTERIOR</th>
+                  <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">VARIAÇÃO PERCENTUAL VALORES</th>
                   <th style="padding:6px 4px;text-align:center;border:1px solid #ccc;">VARIAÇÃO CONTRIBUINTES</th>
                 </tr>
               </thead>
@@ -5220,9 +5220,9 @@ let _pixLancamentos = []; // buffer para confirmação
                 <tr style="background:${i%2===0?'#f8faff':'#fff'};">
                   <td style="padding:4px 8px;border:1px solid #ddd;font-weight:700;font-size:11px;">${c.nome}</td>
                   ${['entrada','despesas','totalAtual','totalContrib','mesAnt','contribAnt'].map(campo => `
-                  <td style="padding:2px;border:1px solid #ddd;text-align:center;">
+                  <td style="padding:2px;border:1px solid #ddd;text-align:center;${campo==='despesas'?'color:#c0392b;':campo==='entrada'?'':''}">
                     <input type="text" value="${c[campo]}" data-cong="${i}" data-campo="${campo}"
-                      style="width:100%;border:none;background:transparent;text-align:center;font-size:11px;font-weight:600;outline:none;min-width:70px;cursor:text;"
+                      style="width:100%;border:none;background:transparent;text-align:center;font-size:11px;font-weight:600;outline:none;min-width:70px;cursor:text;color:${campo==='despesas'?'#c0392b':'inherit'};"
                       oninput="calcularLinha(${i})" onchange="salvarCelula(${i},'${campo}',this.value)"
                       onkeydown="navegarCelula(event,${i},'${campo}')" />
                   </td>`).join('')}
@@ -5336,24 +5336,32 @@ let _pixLancamentos = []; // buffer para confirmação
       if (elTA) elTA.value = formatMoeda(totalAtualCalc);
 
       // % variação financeira = (entrada atual - mês anterior) / mês anterior
-      let pctTxt = '-';
+      let pctTxt = '';
       let pctVal = 0;
-      if (mesAnt > 0 && entrada > 0) {
+      if (mesAnt > 0) {
         pctVal = ((entrada - mesAnt) / mesAnt * 100);
-        pctTxt = (pctVal >= 0 ? '+' : '') + pctVal.toFixed(1) + '%';
+        pctTxt = pctVal.toFixed(2) + '%';
       }
       const pctEl = document.getElementById('pct_' + i);
       if (pctEl) {
         pctEl.textContent = pctTxt;
-        pctEl.style.color = pctVal > 0 ? '#1c7c4a' : pctVal < 0 ? '#c0392b' : '#556';
+        // Rosa/vermelho se negativo, normal se positivo (como no modelo)
+        pctEl.style.background = pctVal < 0 ? '#fce4e4' : pctVal > 0 ? '#e4f5e8' : '';
+        pctEl.style.color = pctVal < 0 ? '#c0392b' : pctVal > 0 ? '#1c7c4a' : '#333';
+        pctEl.style.fontWeight = '700';
       }
 
       // Variação contribuintes
       const varContrib = contribAtual - contribAnt;
       const varEl = document.getElementById('var_' + i);
       if (varEl) {
-        varEl.textContent = varContrib > 0 ? '+' + varContrib : varContrib || 0;
+        if (contribAnt === 0 && contribAtual === 0) {
+          varEl.textContent = '';
+        } else {
+          varEl.textContent = varContrib > 0 ? '+' + varContrib : String(varContrib);
+        }
         varEl.style.color = varContrib > 0 ? '#1c7c4a' : varContrib < 0 ? '#c0392b' : '#333';
+        varEl.style.fontWeight = '700';
       }
 
       calcularTotais();
@@ -5388,8 +5396,7 @@ let _pixLancamentos = []; // buffer para confirmação
       const mediaPct = countP > 0 ? (somaP / countP) : null;
       const pctEl = document.getElementById('soma_pct');
       if (pctEl) {
-        pctEl.textContent = mediaPct !== null ? (mediaPct >= 0 ? '+' : '') + mediaPct.toFixed(1) + '%' : '-';
-        pctEl.style.color = mediaPct > 0 ? '#1c7c4a' : mediaPct < 0 ? '#c0392b' : '#fff';
+        pctEl.textContent = mediaPct !== null ? mediaPct.toFixed(0) + '%' : '-';
       }
 
       // SOMA variação contribuintes
