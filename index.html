@@ -4841,12 +4841,7 @@ let _pixLancamentos = []; // buffer para confirmação
 
             // Lança direto como APROVADO (não pendente)
             despesas.push({
-              id: 'EXTRATO_' + (() => {
-                const str = dataISO + '|' + desc.toUpperCase() + '|' + valor.toFixed(2) + '|' + i;
-                let hash = 0;
-                for (let c = 0; c < str.length; c++) { hash = ((hash << 5) - hash) + str.charCodeAt(c); hash |= 0; }
-                return Math.abs(hash).toString(36).padStart(8,'0');
-              })(),
+              id: 'EXTRATO_' + dataISO.replace(/-/g,'') + '_R' + String(i).padStart(4,'0') + '_V' + Math.round(valor*100),
               data_lancamento: dataISO,
               nome_digitado: desc.toUpperCase(),
               cargo_digitado: doc ? 'DOC: ' + doc.toUpperCase() : '',
@@ -4930,20 +4925,12 @@ let _pixLancamentos = []; // buffer para confirmação
     async function confirmarImportacaoExtrato() {
       if (!_extratoLancamentos.length) return;
 
-      const existentes = carregarLancamentos();
-      const idsExist = new Set(existentes.map(l => l.id));
+      const existentes = carregarLancamentos()
+        .filter(l => l.origem !== 'EXTRATO_BANCARIO'); // Remove extrato anterior
 
-      // Detecta duplicatas SOMENTE por ID único
-      // Mesmo fornecedor/valor no mesmo dia pode acontecer 2x — não é duplicata!
-      let novos = 0, duplicados = 0;
-
+      let novos = 0;
       for (const l of _extratoLancamentos) {
-        if (idsExist.has(l.id)) {
-          duplicados++;
-          continue;
-        }
         existentes.push(l);
-        idsExist.add(l.id);
         await sbSalvarItem(l);
         novos++;
       }
@@ -4951,7 +4938,7 @@ let _pixLancamentos = []; // buffer para confirmação
       salvarLancamentos(existentes);
       registrarAuditoria('IMPORTAÇÃO EXTRATO', `${novos} despesas importadas, ${duplicados} duplicadas ignoradas.`);
 
-      document.getElementById('extratoStatus').innerHTML = `<div style="background:#f5f3ff;border-radius:10px;padding:10px 12px;border:1px solid #c4b5fd;"><div style="font-size:13px;font-weight:800;color:#7c3aed;">🎉 ${novos} novas despesas lançadas! ${duplicados > 0 ? duplicados + ' duplicadas ignoradas.' : ''}</div></div>`;
+      document.getElementById('extratoStatus').innerHTML = `<div style="background:#f5f3ff;border-radius:10px;padding:10px 12px;border:1px solid #c4b5fd;"><div style="font-size:13px;font-weight:800;color:#7c3aed;">🎉 ${novos} despesas importadas!</div></div>`;
       document.getElementById('extratoPreview').style.display = 'none';
       document.getElementById('extratoBtnImportar').style.display = 'none';
       document.getElementById('inputExtrato').value = '';
