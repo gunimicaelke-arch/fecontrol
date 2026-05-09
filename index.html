@@ -5749,13 +5749,13 @@ let _pixLancamentos = []; // buffer para confirmação
         });
         filtrados = sortHierarquiaAlfabetica(rawDiz, 'nome_digitado', 'cargo_digitado');
         titulo = '📊 Relatório — Contribuintes, Oferta e Dízimo';
-        colunas = ['Data','Nome / Departamento','Cargo','Tipo','Valor (R$)'];
+        colunas = ['Data','Nome / Departamento','Cargo','Tipo','Valor (R$)',''];
       } else if (tipo === 'rel_missao') {
         filtrados = sortHierarquiaAlfabetica(
           aprovados.filter(l => l.tipo_lancamento === 'MISSAO'), 'nome_digitado', 'cargo_digitado'
         );
         titulo = '✈️ Relatório — Missão';
-        colunas = ['Data','Nome','Cargo','Valor (R$)'];
+        colunas = ['Data','Nome','Cargo','Valor (R$)',''];
       } else if (tipo === 'rel_despesas') {
         if (!usuarioAtual || usuarioAtual.perfil !== 'admin') {
           alvo.innerHTML = '<div style="padding:24px;text-align:center;color:#af2f2f;font-weight:700;">❌ Acesso restrito — apenas administradores.</div>';
@@ -5789,6 +5789,9 @@ let _pixLancamentos = []; // buffer para confirmação
             <td>${escapeHtml(l.cargo_digitado||'-')}</td>
             <td>${tipoLabel}</td>
             <td class="rel-valor">${moeda(l.valor)}</td>
+            <td style="text-align:center;white-space:nowrap;">
+              <button class="btn-red" style="padding:4px 10px;font-size:12px;border-radius:8px;" onclick="excluirLancamento('${l.id}')">🗑️</button>
+            </td>
           </tr>`;
         }).join('');
       } else if (tipo === 'rel_missao') {
@@ -5797,6 +5800,9 @@ let _pixLancamentos = []; // buffer para confirmação
           <td><strong>${escapeHtml(l.nome_digitado||'-')}</strong></td>
           <td>${escapeHtml(l.cargo_digitado||'-')}</td>
           <td class="rel-valor">${moeda(l.valor)}</td>
+          <td style="text-align:center;white-space:nowrap;">
+            <button class="btn-red" style="padding:4px 10px;font-size:12px;border-radius:8px;" onclick="excluirLancamento('${l.id}')">🗑️</button>
+          </td>
         </tr>`).join('');
       } else if (tipo === 'rel_despesas') {
         linhas = filtrados.map(l => {
