@@ -184,10 +184,10 @@
     .dashboard-grid {
       padding: 20px;
       display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 24px;
+      grid-template-columns: 280px 1fr;
+      gap: 30px;
       align-items: start;
-      max-width: 1600px;
+      max-width: 100%;
       margin: 0 auto;
     }
     .left-column, .right-column {
@@ -197,13 +197,18 @@
     .left-column {
       position: sticky;
       top: 20px;
-      max-width: 320px;
+      max-width: 280px;
+      width: 280px;
+    }
+    .right-column {
+      min-width: 0;
+      width: 100%;
     }
     .panel-card {
       background: #ffffff;
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 18px;
+      border-radius: 14px;
+      padding: 16px;
       box-shadow: 0 4px 16px rgba(31, 57, 102, 0.08);
     }
     .panel-title {
@@ -247,9 +252,9 @@
     input, select, textarea {
       width: 100%;
       border: 1px solid #cfdbea;
-      border-radius: 12px;
-      padding: 11px 12px;
-      font-size: 15px;
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 14px;
       outline: none;
       background: #fff;
       color: var(--text);
@@ -724,10 +729,10 @@
     }
     .tipo-btn {
       flex: 1;
-      padding: 12px 8px;
-      font-size: 14px;
+      padding: 10px 6px;
+      font-size: 13px;
       font-weight: 700;
-      border-radius: 12px;
+      border-radius: 10px;
       border: 2px solid #d3deef;
       background: linear-gradient(180deg, #f8fbff 0%, #e9eff8 100%);
       color: #445877;
@@ -1407,7 +1412,7 @@
               </div>
 
               <!-- DATA, CARGO E VALOR NA MESMA LINHA -->
-              <div style="display:grid;grid-template-columns:90px 1fr 85px;gap:8px;">
+              <div style="display:grid;grid-template-columns:85px 1fr 75px;gap:6px;">
                 <div>
                   <label for="dataLancamento">Data</label>
                   <input type="date" id="dataLancamento" />
@@ -1442,7 +1447,7 @@
           <div class="panel-card">
             <div class="section-title">💸 Despesas</div>
             <!-- DATA, DESCRIÇÃO, DOCUMENTO E VALOR NA MESMA LINHA -->
-            <div style="display:grid;grid-template-columns:90px 1fr 90px 75px;gap:8px;margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:85px 1fr 80px 70px;gap:6px;margin-bottom:14px;">
               <div>
                 <label for="regData">Data</label>
                 <input type="date" id="regData" />
