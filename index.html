@@ -5830,9 +5830,9 @@ let _pixLancamentos = []; // buffer para confirmação
       // Botões de navegação para todos os relatórios
       const botoesNavegacao = (tipo === 'rel_dizimos_ofertas' || tipo === 'rel_missao') ? `
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-          <button class="btn-soft" onclick="trocarAba('rel_graficos', document.querySelector('[data-tab=rel_graficos]'))" style="font-size:13px;padding:8px 14px;">📈 Gráfico Mensal</button>
-          <button class="btn-soft" onclick="trocarAba('rel_filtro', document.querySelector('[data-tab=rel_filtro]'))" style="font-size:13px;padding:8px 14px;">🔍 Filtrar por Período</button>
-          <button class="btn-soft" onclick="trocarAba('rel_historico', document.querySelector('[data-tab=rel_historico]'))" style="font-size:13px;padding:8px 14px;">👤 Histórico por Pessoa</button>
+          <button class="btn-soft" onclick="abaAtual='rel_graficos'; renderizarRelatorio('rel_graficos');" style="font-size:13px;padding:8px 14px;">📈 Gráfico Mensal</button>
+          <button class="btn-soft" onclick="abaAtual='rel_filtro'; renderizarRelatorio('rel_filtro');" style="font-size:13px;padding:8px 14px;">🔍 Filtrar por Período</button>
+          <button class="btn-soft" onclick="abaAtual='rel_historico'; renderizarRelatorio('rel_historico');" style="font-size:13px;padding:8px 14px;">👤 Histórico por Pessoa</button>
         </div>` : '';
 
       alvo.innerHTML = `
