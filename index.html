@@ -5113,7 +5113,15 @@ let _pixLancamentos = []; // buffer para confirmação
     }
 
     function carregarLancamentosFiltrados() {
-      return filtrarPorMesAtual(carregarLancamentos());
+      let lista = carregarLancamentos();
+      
+      // Aplicar filtro do DROPDOWN de mês primeiro
+      if (_filtroMesSelecionado && _filtroMesSelecionado !== 'todos') {
+        lista = lista.filter(l => (l.data_lancamento || '').startsWith(_filtroMesSelecionado));
+      }
+      
+      // Depois aplicar filtro de mês fechado (se houver)
+      return filtrarPorMesAtual(lista);
     }
 
     // ===================== BUSCAR NOVOS LANÇAMENTOS =====================
