@@ -5843,7 +5843,7 @@ let _pixLancamentos = []; // buffer para confirmação
     }
 
     // ===================== FILTRO MÊS LANÇAMENTOS =====================
-    let _filtroMesSelecionado = 'todos';
+    let _filtroMesSelecionado = localStorage.getItem('filtroMesSelecionado') || 'todos';
 
     function popularFiltroMeses() {
       const sel = document.getElementById('filtroMesLancamentos');
@@ -5872,6 +5872,21 @@ let _pixLancamentos = []; // buffer para confirmação
     function aplicarFiltroMesLancamentos() {
       const sel = document.getElementById('filtroMesLancamentos');
       _filtroMesSelecionado = sel ? sel.value : 'todos';
+      
+      // SALVAR no localStorage para lembrar
+      localStorage.setItem('filtroMesSelecionado', _filtroMesSelecionado);
+      
+      // Atualizar contador
+      const totalSpan = document.getElementById('totalMesFiltro');
+      if (totalSpan) {
+        if (_filtroMesSelecionado && _filtroMesSelecionado !== 'todos') {
+          const filtrados = carregarLancamentosFiltrados();
+          totalSpan.textContent = '(' + filtrados.length + ' lançamento' + (filtrados.length !== 1 ? 's' : '') + ')';
+        } else {
+          totalSpan.textContent = '';
+        }
+      }
+      
       renderizarTudo();
     }
 
