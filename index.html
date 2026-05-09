@@ -4091,9 +4091,16 @@
       if (filtroMes) {
         if (nome === 'rel_dizimos_ofertas' || nome === 'rel_missao' || nome === 'rel_despesas') {
           filtroMes.style.display = 'block';
+          // LIMPAR filtro ao trocar de aba
+          window._filtroMesAtivo = '';
+          const select = document.getElementById('seletorMesGlobal');
+          if (select) select.value = '';
+          const info = document.getElementById('infoMesGlobal');
+          if (info) info.textContent = '';
           preencherFiltroMesGlobal();
         } else {
           filtroMes.style.display = 'none';
+          window._filtroMesAtivo = '';
         }
       }
       
