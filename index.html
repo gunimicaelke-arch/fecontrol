@@ -4089,7 +4089,7 @@
       // Mostrar/esconder filtro de mês global
       const filtroMes = document.getElementById('filtroMesGlobal');
       if (filtroMes) {
-        if (nome === 'rel_dizimos_ofertas' || nome === 'rel_missao') {
+        if (nome === 'rel_dizimos_ofertas' || nome === 'rel_missao' || nome === 'rel_despesas') {
           filtroMes.style.display = 'block';
           preencherFiltroMesGlobal();
         } else {
@@ -5782,7 +5782,7 @@ let _pixLancamentos = []; // buffer para confirmação
 
       // APLICAR FILTRO DE MÊS GLOBAL se estiver ativo
       const mesFiltro = window._filtroMesAtivo || '';
-      if (mesFiltro && (tipo === 'rel_dizimos_ofertas' || tipo === 'rel_missao')) {
+      if (mesFiltro && (tipo === 'rel_dizimos_ofertas' || tipo === 'rel_missao' || tipo === 'rel_despesas')) {
         filtrados = filtrados.filter(l => {
           return l.data_lancamento && l.data_lancamento.startsWith(mesFiltro);
         });
@@ -5861,8 +5861,62 @@ let _pixLancamentos = []; // buffer para confirmação
 
       const cabecalhos = colunas.map(c => `<th>${c}</th>`).join('');
 
+      // CARDS COM RESUMO no topo
+      let cardsResumo = '';
+      if (tipo === 'rel_dizimos_ofertas') {
+        const totalDiz = filtrados.filter(l => {
+          const t = l.tipo_lancamento || '';
+          return t !== 'MISSAO' && t !== 'DEPARTAMENTO' && l.origem !== 'OFERTA_DEPARTAMENTO_HTML';
+        }).reduce((s,l) => s + Number(l.valor||0), 0);
+        
+        const totalDepto = filtrados.filter(l => {
+          return l.tipo_lancamento === 'DEPARTAMENTO' || l.origem === 'OFERTA_DEPARTAMENTO_HTML';
+        }).reduce((s,l) => s + Number(l.valor||0), 0);
+
+        cardsResumo = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+            <div style="background:#e7f0ff;border-radius:12px;padding:14px;text-align:center;">
+              <div style="font-size:11px;font-weight:700;color:#556;margin-bottom:4px;">🙏 DÍZIMO/OFERTAS</div>
+              <div style="font-size:18px;font-weight:800;color:#1f57b4;">${moeda(totalDiz)}</div>
+            </div>
+            <div style="background:#f0f4fb;border-radius:12px;padding:14px;text-align:center;">
+              <div style="font-size:11px;font-weight:700;color:#556;margin-bottom:4px;">🏛️ DEPARTAMENTO</div>
+              <div style="font-size:18px;font-weight:800;color:#4a5f8a;">${moeda(totalDepto)}</div>
+            </div>
+            <div style="background:#edfff5;border-radius:12px;padding:14px;text-align:center;">
+              <div style="font-size:11px;font-weight:700;color:#556;margin-bottom:4px;">💰 TOTAL GERAL</div>
+              <div style="font-size:18px;font-weight:800;color:#1c7c4a;">${moeda(total)}</div>
+            </div>
+          </div>`;
+      } else if (tipo === 'rel_missao') {
+        cardsResumo = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+            <div style="background:#edfff5;border-radius:12px;padding:14px;text-align:center;">
+              <div style="font-size:11px;font-weight:700;color:#556;margin-bottom:4px;">✈️ MISSÃO</div>
+              <div style="font-size:18px;font-weight:800;color:#1c7c4a;">${moeda(total)}</div>
+            </div>
+            <div style="background:#f0f4fb;border-radius:12px;padding:14px;text-align:center;">
+              <div style="font-size:11px;font-weight:700;color:#556;margin-bottom:4px;">📊 LANÇAMENTOS</div>
+              <div style="font-size:18px;font-weight:800;color:#1f3150;">${filtrados.length}</div>
+            </div>
+          </div>`;
+      } else if (tipo === 'rel_despesas') {
+        cardsResumo = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+            <div style="background:#fdeaea;border-radius:12px;padding:14px;text-align:center;">
+              <div style="font-size:11px;font-weight:700;color:#556;margin-bottom:4px;">💸 TOTAL DESPESAS</div>
+              <div style="font-size:18px;font-weight:800;color:#af2f2f;">${moeda(total)}</div>
+            </div>
+            <div style="background:#f0f4fb;border-radius:12px;padding:14px;text-align:center;">
+              <div style="font-size:11px;font-weight:700;color:#556;margin-bottom:4px;">📊 LANÇAMENTOS</div>
+              <div style="font-size:18px;font-weight:800;color:#1f3150;">${filtrados.length}</div>
+            </div>
+          </div>`;
+      }
+
       alvo.innerHTML = `
         <div style="font-size:17px;font-weight:800;color:#1f3150;margin-bottom:14px;">${titulo}</div>
+        ${cardsResumo}
         <div id="containerRelatorio">
           <div style="overflow-x:auto;">
             <table class="rel-table">
