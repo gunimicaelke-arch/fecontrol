@@ -4282,7 +4282,7 @@
     function renderizarLista() {
       const alvo = document.getElementById('conteudoLista');
       if (alvo) alvo.classList.remove('relatorio-aberto');
-      const lancamentos = carregarLancamentos();
+      const lancamentos = carregarLancamentosFiltrados(); // AGORA USA O FILTRO!
 
       let filtrados = [];
       if (abaAtual === 'aprovados') {
@@ -5895,6 +5895,18 @@ let _pixLancamentos = []; // buffer para confirmação
     function aplicarFiltroMesLancamentos() {
       const sel = document.getElementById('filtroMesLancamentos');
       _filtroMesSelecionado = sel ? sel.value : 'todos';
+      
+      // Atualizar contador
+      const totalSpan = document.getElementById('totalMesFiltro');
+      if (totalSpan) {
+        if (_filtroMesSelecionado && _filtroMesSelecionado !== 'todos') {
+          const filtrados = carregarLancamentosFiltrados();
+          totalSpan.textContent = `(${filtrados.length} lançamento${filtrados.length !== 1 ? 's' : ''})`;
+        } else {
+          totalSpan.textContent = '';
+        }
+      }
+      
       renderizarTudo();
     }
 
