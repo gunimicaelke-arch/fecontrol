@@ -1543,7 +1543,11 @@
                 <div class="section-title" style="margin-bottom:0;">Lançamentos</div>
                 <div id="badgePendentes" style="display:none;background:#e85d04;color:#fff;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:800;animation:pulsar 1.5s infinite;">⚠️ <span id="badgePendentesNum">0</span> pendente(s)</div>
               </div>
-              <button onclick="imprimirRelatorio()" style="background:linear-gradient(135deg,#1f57b4,#2f75e7);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">🖨️ Imprimir</button>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button onclick="fazerBackupManual()" style="background:linear-gradient(135deg,#1c7c4a,#2a9d5f);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">💾 Backup Manual</button>
+                <button onclick="restaurarDaNuvem()" style="background:linear-gradient(135deg,#2f75e7,#4f90ee);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">☁️ Restaurar Nuvem</button>
+                <button onclick="imprimirRelatorio()" style="background:linear-gradient(135deg,#1f57b4,#2f75e7);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">🖨️ Imprimir</button>
+              </div>
             </div>
 
             <!-- BUSCA RÁPIDA -->
@@ -1571,11 +1575,6 @@
               <button class="btn-soft tab-btn tab-relatorio" data-tab="rel_dizimos_ofertas" onclick="trocarAba('rel_dizimos_ofertas', this)">📊 Contribuintes, Oferta e Dízimo</button>
               <button class="btn-soft tab-btn tab-relatorio" data-tab="rel_missao" onclick="trocarAba('rel_missao', this)">✈️ Missão</button>
               <button class="btn-soft tab-btn tab-relatorio" id="tabDespesas" data-tab="rel_despesas" onclick="trocarAba('rel_despesas', this)">💸 Despesas</button>
-
-              <div style="width:100%;height:1px;background:#e0e9f5;margin:2px 0;"></div>
-              <button class="btn-soft tab-btn tab-relatorio" data-tab="rel_graficos" onclick="trocarAba('rel_graficos', this)">📈 Gráfico Mensal</button>
-              <button class="btn-soft tab-btn tab-relatorio" data-tab="rel_filtro" onclick="trocarAba('rel_filtro', this)">🔍 Filtrar por Período</button>
-              <button class="btn-soft tab-btn tab-relatorio" data-tab="rel_historico" onclick="trocarAba('rel_historico', this)">👤 Histórico por Pessoa</button>
             </div>
             <div class="list-head" id="listHead">
               <span>Data</span>
@@ -3098,6 +3097,72 @@
 
     function salvarLancamentos(lista) {
       localStorage.setItem(STORAGE_KEYS.lancamentos, JSON.stringify(lista));
+      
+      // BACKUP AUTOMÁTICO NA NUVEM a cada salvamento
+      backupAutomaticoNuvem(lista);
+    }
+
+    // Backup automático na nuvem (não bloqueia a UI)
+    async function backupAutomaticoNuvem(lancamentos) {
+      try {
+        const backupData = {
+          id: 'backup_' + new Date().toISOString(),
+          data_backup: new Date().toISOString(),
+          total_lancamentos: lancamentos.length,
+          dados: JSON.stringify({
+            lancamentos: lancamentos,
+            base: carregarBase(),
+            timestamp: new Date().toISOString()
+          }),
+          usuario: usuarioAtual ? usuarioAtual.nome : 'Sistema'
+        };
+
+        await fetch(`${SUPABASE_URL}/rest/v1/backups_automaticos`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(backupData)
+        });
+
+        console.log('✅ Backup automático salvo na nuvem');
+        
+        // Limpar backups antigos (manter últimos 30)
+        setTimeout(() => limparBackupsAntigos(), 5000);
+      } catch (erro) {
+        console.log('Backup automático offline:', erro.message);
+      }
+    }
+
+    async function limparBackupsAntigos() {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/backups_automaticos?select=id,data_backup&order=data_backup.desc`, {
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY
+          }
+        });
+        
+        const backups = await res.json();
+        
+        if (backups.length > 30) {
+          const parasApagar = backups.slice(30);
+          for (const backup of parasApagar) {
+            await fetch(`${SUPABASE_URL}/rest/v1/backups_automaticos?id=eq.${backup.id}`, {
+              method: 'DELETE',
+              headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_KEY
+              }
+            });
+          }
+        }
+      } catch (erro) {
+        console.log('Limpeza de backups falhou:', erro.message);
+      }
     }
 
     // Salva UM lançamento no Supabase
@@ -4192,7 +4257,7 @@
     function renderizarLista() {
       const alvo = document.getElementById('conteudoLista');
       if (alvo) alvo.classList.remove('relatorio-aberto');
-      const lancamentos = carregarLancamentos();
+      const lancamentos = carregarLancamentosFiltrados(); // AGORA USA O FILTRO DE MÊS!
 
       let filtrados = [];
       if (abaAtual === 'aprovados') {
@@ -5080,6 +5145,75 @@ let _pixLancamentos = []; // buffer para confirmação
     }
 
     // ===================== IMPRESSÃO =====================
+    // ========================================================
+    // 💾 BACKUP MANUAL E AUTOMÁTICO
+    // ========================================================
+    
+    function fazerBackupManual() {
+      const dados = {
+        lancamentos: carregarLancamentos(),
+        base: carregarBase(),
+        usuarios: JSON.parse(localStorage.getItem(STORAGE_KEYS.usuarios) || '[]'),
+        dataBackup: new Date().toISOString(),
+        versao: '1.0'
+      };
+      
+      const json = JSON.stringify(dados, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dataHora = new Date().toISOString().slice(0,16).replace('T', '_').replace(/:/g, '-');
+      a.href = url;
+      a.download = `backup_fecontrol_${dataHora}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      mostrarStatus('✅ Backup manual salvo! Arquivo baixado.', 'ok');
+    }
+    
+    async function restaurarDaNuvem() {
+      const confirma = confirm('☁️ RESTAURAR DA NUVEM\n\nIsso vai buscar o backup mais recente do Supabase e restaurar todos os dados.\n\nContinuar?');
+      if (!confirma) return;
+      
+      try {
+        mostrarStatus('⏳ Buscando backup na nuvem...', 'ok');
+        
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/backups_automaticos?select=*&order=data_backup.desc&limit=1`, {
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY
+          }
+        });
+        
+        const backups = await res.json();
+        
+        if (!backups || backups.length === 0) {
+          alert('❌ Nenhum backup encontrado na nuvem.');
+          return;
+        }
+        
+        const ultimoBackup = backups[0];
+        const dados = JSON.parse(ultimoBackup.dados);
+        
+        localStorage.setItem(STORAGE_KEYS.lancamentos, JSON.stringify(dados.lancamentos));
+        if (dados.base) {
+          localStorage.setItem(STORAGE_KEYS.base, JSON.stringify(dados.base));
+        }
+        
+        const dataBackup = new Date(ultimoBackup.data_backup).toLocaleString('pt-BR');
+        mostrarStatus(`✅ Backup de ${dataBackup} restaurado! Recarregando...`, 'ok');
+        
+        setTimeout(() => {
+          location.reload();
+        }, 2000);
+        
+      } catch (erro) {
+        alert('❌ Erro ao restaurar da nuvem: ' + erro.message);
+      }
+    }
+
     function imprimirRelatorio() {
       const titulo = document.querySelector('#areaImpressao .section-title, #areaImpressao [style*="font-size:17px"]');
       const tituloTexto = titulo ? titulo.textContent : 'Relatório FEControl';
