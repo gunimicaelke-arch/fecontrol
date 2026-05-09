@@ -184,25 +184,26 @@
     .dashboard-grid {
       padding: 20px;
       display: grid;
-      grid-template-columns: 380px 1fr;
-      gap: 20px;
+      grid-template-columns: 320px 1fr;
+      gap: 24px;
       align-items: start;
       max-width: 1600px;
       margin: 0 auto;
     }
     .left-column, .right-column {
       display: grid;
-      gap: 16px;
+      gap: 14px;
     }
     .left-column {
       position: sticky;
       top: 20px;
+      max-width: 320px;
     }
     .panel-card {
       background: #ffffff;
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 20px;
+      padding: 18px;
       box-shadow: 0 4px 16px rgba(31, 57, 102, 0.08);
     }
     .panel-title {
@@ -246,9 +247,9 @@
     input, select, textarea {
       width: 100%;
       border: 1px solid #cfdbea;
-      border-radius: 14px;
-      padding: 14px 15px;
-      font-size: 18px;
+      border-radius: 12px;
+      padding: 11px 12px;
+      font-size: 15px;
       outline: none;
       background: #fff;
       color: var(--text);
@@ -1406,7 +1407,7 @@
               </div>
 
               <!-- DATA, CARGO E VALOR NA MESMA LINHA -->
-              <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:12px;">
+              <div style="display:grid;grid-template-columns:90px 1fr 85px;gap:8px;">
                 <div>
                   <label for="dataLancamento">Data</label>
                   <input type="date" id="dataLancamento" />
@@ -1441,7 +1442,7 @@
           <div class="panel-card">
             <div class="section-title">💸 Despesas</div>
             <!-- DATA, DESCRIÇÃO, DOCUMENTO E VALOR NA MESMA LINHA -->
-            <div style="display:grid;grid-template-columns:1fr 2fr 1.5fr 1fr;gap:12px;margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:90px 1fr 90px 75px;gap:8px;margin-bottom:16px;">
               <div>
                 <label for="regData">Data</label>
                 <input type="date" id="regData" />
