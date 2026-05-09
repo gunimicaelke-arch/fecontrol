@@ -1557,13 +1557,6 @@
 
             <div class="tabs premium-tabs" style="flex-wrap:wrap;gap:8px;">
               <!-- Filtro por mês -->
-              <div style="width:100%;display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                <span style="font-size:12px;font-weight:700;color:#556;">📅 Período:</span>
-                <select id="filtroMesLancamentos" onchange="aplicarFiltroMesLancamentos()" style="border:1px solid #ccd;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:700;color:#1f3150;cursor:pointer;">
-                  <option value="todos">Todos os meses</option>
-                </select>
-                <span id="totalMesFiltro" style="font-size:12px;color:#778;font-weight:600;"></span>
-              </div>
               <button class="btn-soft tab-btn" data-tab="pendentes" onclick="trocarAba('pendentes', this)">⏳ Pendentes</button>
               <button class="btn-soft tab-btn active" data-tab="aprovados" onclick="trocarAba('aprovados', this)">✅ Aprovados</button>
               <button class="btn-soft tab-btn" data-tab="reprovados" onclick="trocarAba('reprovados', this)">❌ Reprovados</button>
@@ -3719,7 +3712,9 @@
     }
 
     async function excluirLancamento(id) {
-      const ok = confirm('Deseja excluir este lançamento?');
+      const lancamento = carregarLancamentos().find(l => l.id === id);
+      const nome = lancamento ? lancamento.nome_digitado : 'este lançamento';
+      const ok = confirm(`⚠️ ATENÇÃO!\n\nDeseja realmente excluir o lançamento de:\n"${nome}"?\n\nEsta ação não pode ser desfeita.`);
       if (!ok) return;
       try {
         // 1. Deleta do Supabase primeiro
@@ -3733,7 +3728,7 @@
         salvarLancamentos(lista);
       }
       registrarAuditoria('EXCLUSÃO', 'Excluído ID: ' + id);
-      mostrarStatus('Lançamento excluído.', 'ok');
+      mostrarStatus('✅ Lançamento excluído com sucesso!', 'ok');
       renderizarTudo();
     }
     function escaparXml(valor) {
@@ -5790,7 +5785,7 @@ let _pixLancamentos = []; // buffer para confirmação
             <td>${tipoLabel}</td>
             <td class="rel-valor">${moeda(l.valor)}</td>
             <td style="text-align:center;white-space:nowrap;">
-              <button class="btn-red" style="padding:4px 10px;font-size:12px;border-radius:8px;" onclick="excluirLancamento('${l.id}')">🗑️</button>
+              <button class="btn-red" style="padding:6px 12px;font-size:13px;border-radius:8px;font-weight:600;min-width:90px;" onclick="excluirLancamento('${l.id}')">🗑️ Excluir</button>
             </td>
           </tr>`;
         }).join('');
@@ -5801,7 +5796,7 @@ let _pixLancamentos = []; // buffer para confirmação
           <td>${escapeHtml(l.cargo_digitado||'-')}</td>
           <td class="rel-valor">${moeda(l.valor)}</td>
           <td style="text-align:center;white-space:nowrap;">
-            <button class="btn-red" style="padding:4px 10px;font-size:12px;border-radius:8px;" onclick="excluirLancamento('${l.id}')">🗑️</button>
+            <button class="btn-red" style="padding:6px 12px;font-size:13px;border-radius:8px;font-weight:600;min-width:90px;" onclick="excluirLancamento('${l.id}')">🗑️ Excluir</button>
           </td>
         </tr>`).join('');
       } else if (tipo === 'rel_despesas') {
@@ -5832,8 +5827,17 @@ let _pixLancamentos = []; // buffer para confirmação
 
       const cabecalhos = colunas.map(c => `<th>${c}</th>`).join('');
 
+      // Botões de navegação para todos os relatórios
+      const botoesNavegacao = (tipo === 'rel_dizimos_ofertas' || tipo === 'rel_missao') ? `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+          <button class="btn-soft" onclick="trocarAba('rel_graficos', document.querySelector('[data-tab=rel_graficos]'))" style="font-size:13px;padding:8px 14px;">📈 Gráfico Mensal</button>
+          <button class="btn-soft" onclick="trocarAba('rel_filtro', document.querySelector('[data-tab=rel_filtro]'))" style="font-size:13px;padding:8px 14px;">🔍 Filtrar por Período</button>
+          <button class="btn-soft" onclick="trocarAba('rel_historico', document.querySelector('[data-tab=rel_historico]'))" style="font-size:13px;padding:8px 14px;">👤 Histórico por Pessoa</button>
+        </div>` : '';
+
       alvo.innerHTML = `
         <div style="font-size:17px;font-weight:800;color:#1f3150;margin-bottom:14px;">${titulo}</div>
+        ${botoesNavegacao}
         <div style="overflow-x:auto;">
           <table class="rel-table">
             <thead><tr>${cabecalhos}</tr></thead>
