@@ -5827,30 +5827,151 @@ let _pixLancamentos = []; // buffer para confirmação
 
       const cabecalhos = colunas.map(c => `<th>${c}</th>`).join('');
 
-      // Botões de navegação para todos os relatórios
-      const botoesNavegacao = (tipo === 'rel_dizimos_ofertas' || tipo === 'rel_missao') ? `
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-          <button class="btn-soft" onclick="document.querySelector('[data-tab=rel_graficos]').click()" style="font-size:13px;padding:8px 14px;">📈 Gráfico Mensal</button>
-          <button class="btn-soft" onclick="document.querySelector('[data-tab=rel_filtro]').click()" style="font-size:13px;padding:8px 14px;">🔍 Filtrar por Período</button>
-          <button class="btn-soft" onclick="document.querySelector('[data-tab=rel_historico]').click()" style="font-size:13px;padding:8px 14px;">👤 Histórico por Pessoa</button>
+      // Seletor de mês no lugar dos botões
+      const seletorMes = (tipo === 'rel_dizimos_ofertas' || tipo === 'rel_missao') ? `
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+          <label style="font-size:13px;font-weight:700;color:#556;">📅 Filtrar por mês:</label>
+          <select id="filtroMesRelatorio" onchange="filtrarPorMesRelatorio('${tipo}')" style="padding:8px 14px;border-radius:10px;border:1.5px solid #d0ddef;font-size:13px;font-weight:600;color:#1f3150;cursor:pointer;background:white;">
+            <option value="">Todos os meses</option>
+          </select>
+          <span id="totalMesRelatorio" style="font-size:13px;color:#778;font-weight:600;"></span>
         </div>` : '';
 
       alvo.innerHTML = `
         <div style="font-size:17px;font-weight:800;color:#1f3150;margin-bottom:14px;">${titulo}</div>
-        ${botoesNavegacao}
-        <div style="overflow-x:auto;">
-          <table class="rel-table">
-            <thead><tr>${cabecalhos}</tr></thead>
-            <tbody>${linhas}</tbody>
-            <tfoot>
-              <tr>
-                <td colspan="${colunas.length - 1}" style="text-align:right;font-weight:800;padding:12px 10px;">Total</td>
-                <td class="rel-valor rel-total">${moeda(total)}</td>
-              </tr>
-            </tfoot>
-          </table>
+        ${seletorMes}
+        <div id="containerRelatorio">
+          <div style="overflow-x:auto;">
+            <table class="rel-table">
+              <thead><tr>${cabecalhos}</tr></thead>
+              <tbody>${linhas}</tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="${colunas.length - 1}" style="text-align:right;font-weight:800;padding:12px 10px;">Total</td>
+                  <td class="rel-valor rel-total">${moeda(total)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
         ${btnExportarDesp}`;
+
+      // Preencher opções de meses se tiver seletor
+      if (tipo === 'rel_dizimos_ofertas' || tipo === 'rel_missao') {
+        setTimeout(() => {
+          const select = document.getElementById('filtroMesRelatorio');
+          if (!select) return;
+          
+          // Extrair meses únicos dos dados
+          const mesesUnicos = new Set();
+          filtrados.forEach(l => {
+            if (l.data_lancamento) {
+              const [ano, mes] = l.data_lancamento.split('-');
+              if (ano && mes) mesesUnicos.add(`${ano}-${mes}`);
+            }
+          });
+          
+          // Ordenar e adicionar ao select
+          Array.from(mesesUnicos).sort().reverse().forEach(mesAno => {
+            const [ano, mes] = mesAno.split('-');
+            const mesIdx = parseInt(mes, 10) - 1;
+            const mesNome = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                             'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'][mesIdx];
+            const option = document.createElement('option');
+            option.value = mesAno;
+            option.textContent = `${mesNome}/${ano}`;
+            select.appendChild(option);
+          });
+
+          // Guardar dados originais
+          window._dadosOriginaisRelatorio = { tipo, filtrados, colunas, titulo };
+        }, 50);
+      }
+    }
+
+    function filtrarPorMesRelatorio(tipo) {
+      const select = document.getElementById('filtroMesRelatorio');
+      const mesAno = select?.value || '';
+      const dados = window._dadosOriginaisRelatorio;
+      if (!dados) return;
+
+      let filtrados = dados.filtrados;
+      
+      // Filtrar por mês se selecionado
+      if (mesAno) {
+        filtrados = filtrados.filter(l => {
+          if (!l.data_lancamento) return false;
+          return l.data_lancamento.startsWith(mesAno);
+        });
+      }
+
+      const total = filtrados.reduce((s, l) => s + Number(l.valor||0), 0);
+      
+      // Atualizar total no label
+      const labelTotal = document.getElementById('totalMesRelatorio');
+      if (labelTotal) {
+        if (mesAno) {
+          labelTotal.textContent = `(${filtrados.length} lançamento${filtrados.length !== 1 ? 's' : ''})`;
+        } else {
+          labelTotal.textContent = '';
+        }
+      }
+
+      // Renderizar linhas filtradas
+      let linhas = '';
+      if (tipo === 'rel_dizimos_ofertas') {
+        linhas = filtrados.map(l => {
+          const tipoLabel = l.tipo_lancamento === 'DEPARTAMENTO' ? '🏛️ Departamento'
+            : l.tipo_lancamento === 'MISSAO' ? '✈️ Missão'
+            : l.origem === 'OFERTA_DEPARTAMENTO_HTML' ? '🏛️ Departamento'
+            : '🙏 Dízimo/Ofertas';
+          return `<tr>
+            <td>${formatarDataBR(l.data_lancamento)}</td>
+            <td><strong>${escapeHtml(l.nome_digitado||'-')}</strong></td>
+            <td>${escapeHtml(l.cargo_digitado||'-')}</td>
+            <td>${tipoLabel}</td>
+            <td class="rel-valor">${moeda(l.valor)}</td>
+            <td style="text-align:center;white-space:nowrap;">
+              <button class="btn-red" style="padding:6px 12px;font-size:13px;border-radius:8px;font-weight:600;min-width:90px;" onclick="excluirLancamento('${l.id}')">🗑️ Excluir</button>
+            </td>
+          </tr>`;
+        }).join('');
+      } else if (tipo === 'rel_missao') {
+        linhas = filtrados.map(l => `<tr>
+          <td>${formatarDataBR(l.data_lancamento)}</td>
+          <td><strong>${escapeHtml(l.nome_digitado||'-')}</strong></td>
+          <td>${escapeHtml(l.cargo_digitado||'-')}</td>
+          <td class="rel-valor">${moeda(l.valor)}</td>
+          <td style="text-align:center;white-space:nowrap;">
+            <button class="btn-red" style="padding:6px 12px;font-size:13px;border-radius:8px;font-weight:600;min-width:90px;" onclick="excluirLancamento('${l.id}')">🗑️ Excluir</button>
+          </td>
+        </tr>`).join('');
+      }
+
+      // Atualizar tabela
+      const container = document.getElementById('containerRelatorio');
+      if (container) {
+        const colunas = dados.colunas;
+        const cabecalhos = colunas.map(c => `<th>${c}</th>`).join('');
+        
+        if (!filtrados.length) {
+          container.innerHTML = '<div class="empty">Nenhum lançamento encontrado neste mês.</div>';
+        } else {
+          container.innerHTML = `
+            <div style="overflow-x:auto;">
+              <table class="rel-table">
+                <thead><tr>${cabecalhos}</tr></thead>
+                <tbody>${linhas}</tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="${colunas.length - 1}" style="text-align:right;font-weight:800;padding:12px 10px;">Total</td>
+                    <td class="rel-valor rel-total">${moeda(total)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>`;
+        }
+      }
     }
 
     function exportarRelatorioCSV(tipo) {
