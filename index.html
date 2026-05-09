@@ -1545,6 +1545,8 @@
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button onclick="fazerBackupManual()" style="background:linear-gradient(135deg,#1c7c4a,#2a9d5f);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">💾 Backup Manual</button>
+                <button onclick="document.getElementById('inputRestaurarBackup').click()" style="background:linear-gradient(135deg,#e85d04,#f77f00);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">📥 Restaurar Arquivo</button>
+                <input type="file" id="inputRestaurarBackup" accept=".json" onchange="restaurarDeArquivo(this)" style="display:none;">
                 <button onclick="restaurarDaNuvem()" style="background:linear-gradient(135deg,#2f75e7,#4f90ee);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">☁️ Restaurar Nuvem</button>
                 <button onclick="imprimirRelatorio()" style="background:linear-gradient(135deg,#1f57b4,#2f75e7);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">🖨️ Imprimir</button>
               </div>
@@ -5088,7 +5090,15 @@ let _pixLancamentos = []; // buffer para confirmação
     }
 
     function carregarLancamentosFiltrados() {
-      return filtrarPorMesAtual(carregarLancamentos());
+      let lista = carregarLancamentos();
+      
+      // 1. Aplicar filtro de MÊS do dropdown PRIMEIRO
+      if (_filtroMesSelecionado && _filtroMesSelecionado !== 'todos') {
+        lista = lista.filter(l => (l.data_lancamento || '').startsWith(_filtroMesSelecionado));
+      }
+      
+      // 2. Depois aplicar filtro de mês fechado (se houver)
+      return filtrarPorMesAtual(lista);
     }
 
     // ===================== BUSCAR NOVOS LANÇAMENTOS =====================
@@ -5171,6 +5181,49 @@ let _pixLancamentos = []; // buffer para confirmação
       URL.revokeObjectURL(url);
       
       mostrarStatus('✅ Backup manual salvo! Arquivo baixado.', 'ok');
+    }
+    
+    function restaurarDeArquivo(input) {
+      const arquivo = input.files[0];
+      if (!arquivo) return;
+      
+      const confirma = confirm('⚠️ ATENÇÃO!\n\nRestaurar o backup vai SUBSTITUIR todos os dados atuais.\n\nTem certeza que deseja continuar?');
+      if (!confirma) {
+        input.value = '';
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const dados = JSON.parse(e.target.result);
+          
+          // Validar estrutura
+          if (!dados.lancamentos || !Array.isArray(dados.lancamentos)) {
+            throw new Error('Arquivo de backup inválido');
+          }
+          
+          // Restaurar dados
+          localStorage.setItem(STORAGE_KEYS.lancamentos, JSON.stringify(dados.lancamentos));
+          if (dados.base) {
+            localStorage.setItem(STORAGE_KEYS.base, JSON.stringify(dados.base));
+          }
+          if (dados.usuarios) {
+            localStorage.setItem(STORAGE_KEYS.usuarios, JSON.stringify(dados.usuarios));
+          }
+          
+          mostrarStatus('✅ Backup restaurado com sucesso! Recarregando...', 'ok');
+          
+          setTimeout(() => {
+            location.reload();
+          }, 1500);
+          
+        } catch (erro) {
+          alert('❌ Erro ao restaurar backup: ' + erro.message);
+          input.value = '';
+        }
+      };
+      reader.readAsText(arquivo);
     }
     
     async function restaurarDaNuvem() {
