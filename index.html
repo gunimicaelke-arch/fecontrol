@@ -702,10 +702,10 @@
 
     /* ===== Tipo Toggle Buttons ===== */
     .tipo-toggle-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      width: 100%;
     }
     .tipo-group {
       display: flex;
@@ -714,22 +714,24 @@
     }
     .tipo-btn {
       flex: 1;
-      padding: 8px 8px;
-      font-size: 13px;
-      font-weight: 800;
-      border-radius: 10px;
+      padding: 12px 8px;
+      font-size: 14px;
+      font-weight: 700;
+      border-radius: 12px;
       border: 2px solid #d3deef;
       background: linear-gradient(180deg, #f8fbff 0%, #e9eff8 100%);
       color: #445877;
       cursor: pointer;
       transition: all .15s ease;
       text-align: center;
+      white-space: nowrap;
     }
     .tipo-btn.active {
       border-color: #2f75e7;
-      background: linear-gradient(180deg, #deeaff 0%, #c2d5f8 100%);
-      color: #1545aa;
-      box-shadow: 0 4px 12px rgba(47,117,231,0.18);
+      background: linear-gradient(135deg, #2f75e7 0%, #4f90ee 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 16px rgba(47,117,231,0.35);
+      transform: translateY(-2px);
     }
     .tipo-missao {
       flex: none;
@@ -1394,7 +1396,8 @@
                 <input type="hidden" id="tipoLancamento" value="DIZIMOS" />
               </div>
 
-              <div class="field-row-2">
+              <!-- DATA, CARGO E VALOR NA MESMA LINHA -->
+              <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:12px;">
                 <div>
                   <label for="dataLancamento">Data</label>
                   <input type="date" id="dataLancamento" />
@@ -1412,11 +1415,10 @@
                     <option value="MEMBRO">MEMBRO</option>
                   </select>
                 </div>
-              </div>
-
-              <div>
-                <label for="valorLancamento">Valor</label>
-                <input type="text" id="valorLancamento" placeholder="Ex.: 100,00" />
+                <div>
+                  <label for="valorLancamento">Valor</label>
+                  <input type="text" id="valorLancamento" placeholder="Ex.: 100,00" />
+                </div>
               </div>
             </div>
 
@@ -1429,7 +1431,8 @@
 
           <div class="panel-card">
             <div class="section-title">💸 Despesas</div>
-            <div class="form-grid">
+            <!-- DATA, DESCRIÇÃO, DOCUMENTO E VALOR NA MESMA LINHA -->
+            <div style="display:grid;grid-template-columns:1fr 2fr 1.5fr 1fr;gap:12px;margin-bottom:16px;">
               <div>
                 <label for="regData">Data</label>
                 <input type="date" id="regData" />
