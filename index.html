@@ -1544,8 +1544,9 @@
                 <div id="badgePendentes" style="display:none;background:#e85d04;color:#fff;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:800;animation:pulsar 1.5s infinite;">⚠️ <span id="badgePendentesNum">0</span> pendente(s)</div>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button onclick="fazerBackupCompleto()" style="background:linear-gradient(135deg,#1c7c4a,#2a9d5f);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">💾 Backup</button>
-                <button onclick="document.getElementById('inputRestaurar').click()" style="background:linear-gradient(135deg,#e85d04,#f77f00);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">📥 Restaurar</button>
+                <button onclick="fazerBackupCompleto()" style="background:linear-gradient(135deg,#1c7c4a,#2a9d5f);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">💾 Backup Local</button>
+                <button onclick="restaurarDaNuvem()" style="background:linear-gradient(135deg,#2f75e7,#4f90ee);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">☁️ Restaurar Nuvem</button>
+                <button onclick="document.getElementById('inputRestaurar').click()" style="background:linear-gradient(135deg,#e85d04,#f77f00);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">📥 Restaurar Arquivo</button>
                 <input type="file" id="inputRestaurar" accept=".json" onchange="restaurarBackup(this)" style="display:none;">
                 <button onclick="imprimirRelatorio()" style="background:linear-gradient(135deg,#1f57b4,#2f75e7);color:#fff;border:none;border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">🖨️ Imprimir</button>
               </div>
@@ -3103,12 +3104,16 @@
 
     function salvarLancamentos(lista) {
       localStorage.setItem(STORAGE_KEYS.lancamentos, JSON.stringify(lista));
-      // Backup automático a cada 10 lançamentos
+      
+      // BACKUP AUTOMÁTICO NA NUVEM (Supabase) - a cada salvamento
+      fazerBackupAutomaticoNuvem(lista);
+      
+      // Backup local sugerido a cada 10 lançamentos
       const totalLancamentos = lista.length;
       if (totalLancamentos > 0 && totalLancamentos % 10 === 0) {
         setTimeout(() => {
           const badgeBackup = document.createElement('div');
-          badgeBackup.textContent = '💾 Backup automático sugerido!';
+          badgeBackup.textContent = '💾 Backup local sugerido!';
           badgeBackup.style.cssText = 'position:fixed;top:20px;right:20px;background:#1c7c4a;color:white;padding:12px 20px;border-radius:10px;font-weight:700;z-index:10000;box-shadow:0 4px 12px rgba(0,0,0,0.3);cursor:pointer;';
           badgeBackup.onclick = () => {
             fazerBackupCompleto();
@@ -3121,6 +3126,72 @@
             }
           }, 8000);
         }, 500);
+      }
+    }
+
+    // BACKUP AUTOMÁTICO NA NUVEM
+    async function fazerBackupAutomaticoNuvem(lancamentos) {
+      try {
+        const backupData = {
+          id: 'backup_' + new Date().toISOString(),
+          data_backup: new Date().toISOString(),
+          total_lancamentos: lancamentos.length,
+          dados: JSON.stringify({
+            lancamentos: lancamentos,
+            base: carregarBase(),
+            timestamp: new Date().toISOString()
+          }),
+          usuario: usuarioAtual ? usuarioAtual.nome : 'Sistema'
+        };
+
+        // Salvar no Supabase (tabela backups_automaticos)
+        await fetch(`${SUPABASE_URL}/rest/v1/backups_automaticos`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(backupData)
+        });
+
+        console.log('✅ Backup automático salvo na nuvem');
+
+        // Limpar backups antigos (manter apenas os últimos 30)
+        setTimeout(() => limparBackupsAntigos(), 5000);
+
+      } catch (erro) {
+        console.log('Backup automático falhou (modo offline):', erro.message);
+      }
+    }
+
+    async function limparBackupsAntigos() {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/backups_automaticos?select=id,data_backup&order=data_backup.desc`, {
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY
+          }
+        });
+        
+        const backups = await res.json();
+        
+        // Manter apenas os últimos 30
+        if (backups.length > 30) {
+          const parasApagar = backups.slice(30);
+          for (const backup of parasApagar) {
+            await fetch(`${SUPABASE_URL}/rest/v1/backups_automaticos?id=eq.${backup.id}`, {
+              method: 'DELETE',
+              headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': 'Bearer ' + SUPABASE_KEY
+              }
+            });
+          }
+        }
+      } catch (erro) {
+        console.log('Limpeza de backups falhou:', erro.message);
       }
     }
 
@@ -5131,6 +5202,48 @@ let _pixLancamentos = []; // buffer para confirmação
       mostrarStatus('✅ Backup realizado com sucesso! Arquivo salvo.', 'ok');
     }
     
+    async function restaurarDaNuvem() {
+      const confirma = confirm('☁️ RESTAURAR DA NUVEM\n\nIsso vai buscar o backup mais recente do Supabase e restaurar todos os dados.\n\nContinuar?');
+      if (!confirma) return;
+      
+      try {
+        mostrarStatus('⏳ Buscando backup na nuvem...', 'ok');
+        
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/backups_automaticos?select=*&order=data_backup.desc&limit=1`, {
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY
+          }
+        });
+        
+        const backups = await res.json();
+        
+        if (!backups || backups.length === 0) {
+          alert('❌ Nenhum backup encontrado na nuvem.');
+          return;
+        }
+        
+        const ultimoBackup = backups[0];
+        const dados = JSON.parse(ultimoBackup.dados);
+        
+        // Restaurar
+        localStorage.setItem(STORAGE_KEYS.lancamentos, JSON.stringify(dados.lancamentos));
+        if (dados.base) {
+          localStorage.setItem(STORAGE_KEYS.base, JSON.stringify(dados.base));
+        }
+        
+        const dataBackup = new Date(ultimoBackup.data_backup).toLocaleString('pt-BR');
+        mostrarStatus(`✅ Backup de ${dataBackup} restaurado! Recarregando...`, 'ok');
+        
+        setTimeout(() => {
+          location.reload();
+        }, 2000);
+        
+      } catch (erro) {
+        alert('❌ Erro ao restaurar da nuvem: ' + erro.message);
+      }
+    }
+
     function restaurarBackup(input) {
       const arquivo = input.files[0];
       if (!arquivo) return;
